@@ -14,13 +14,21 @@ import adafruit_drv2605 # haptic driver
 
 import platform    # For getting the operating system name
 import subprocess  # For executing a shell command
+import logging
 
 import compartment
 
 from pi5neo import Pi5Neo as SPIneo
 
-# version string
+logger = logging.getLogger(__name__)
+
+# infos
 __version__ = "2.0.0-alpha1"
+
+platform = board.board_id
+
+nfc_serial = "/dev/ttyAMA3"
+
     
 # 4 separate buses on V2
 i2c_sys = I2C(4)  # Device is /dev/i2c-4
@@ -49,8 +57,15 @@ lock_int.direction = digitalio.Direction.INPUT
 
 ## LED config 
 LED_connector_1 = SPIneo('/dev/spidev1.0', 30, 1000)
-LED_connector_2 = SPIneo('/dev/spidev4.0', 30, 1000)
-LED_connector_3 = SPIneo('/dev/spidev0.0', 3, 1000, "RGBW")
+#LED_connector_2 = SPIneo('/dev/spidev4.0', 30, 1000)
+LED_connector_3 = SPIneo('/dev/spidev0.0', 3, 1200, "RGBW")
+
+LED_connector_1.clear_strip()
+LED_connector_1.update_strip(sleep_duration=0.001)
+#LED_connector_2.clear_strip()
+#LED_connector_2.update_strip(sleep_duration=0.001)
+LED_connector_3.clear_strip()
+LED_connector_3.update_strip(sleep_duration=0.001)
 
 # piezo buzzer
 piezo = pwmio.PWMOut(board.D18, frequency=1000, duty_cycle=0)
@@ -66,7 +81,7 @@ try:
     haptic.sequence[0] = adafruit_drv2605.Effect(5) # effect 1: strong click, 4: sharp click 100%, 5: sharp click 60%,  24: sharp tick,  27: short double click strong, 16: 1000 ms alert, 21: medium click, 
 except Exception as e:
     haptic = None
-    #TODO: logger.error(f"Error setting up haptic engine: {e}")
+    logger.error(f"Error setting up haptic engine: {e}")
     
 # autocal results with DRIVE_TIME / 0x1B[4:0] = 25, RATED_VOLTAGE / reg 0x16 = 104, OD_CLAMP / 0x17 = 150
 # >>> haptic._read_u8(0x18)
@@ -80,20 +95,20 @@ try:
     accelerometer = adafruit_lis3dh.LIS3DH_I2C(i2c_sys, address=0x19)
 except Exception as e:
     accelerometer = None
-    #TODO: logger.error(f"Error setting up accelerometer: {e}")
+    logger.error(f"Error setting up accelerometer: {e}")
 
 try:
     light_sensor = adafruit_veml7700.VEML7700(i2c_sys) # 0x10 read: light_sensor.lux
 except Exception as e:
     light_sensor = None
-    #TODO: logger.error(f"Error setting up brightness sensor: {e}")
+    logger.error(f"Error setting up brightness sensor: {e}")
 
 try: 
     # TODO: add support for the BQ34210
     battery_monitor = None
 except Exception:
     battery_monitor = None
-    #TODO: logger.error(f"Error setting up battery monitor: {e}")
+    logger.error(f"Error setting up battery monitor: {e}")
 
 # get connected port expanders on two buses (adresses from 0x20 to 0x27, prototype PCBs: 0x24 to 0x27)
 # first bus/connector        

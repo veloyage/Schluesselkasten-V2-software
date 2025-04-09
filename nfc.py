@@ -9,6 +9,9 @@ from desfire import DESFire, DESFireKey, diversify_key, get_list, to_hex_string,
 from desfire.enums import DESFireCommunicationMode, DESFireFileType, DESFireKeySettings, DESFireKeyType
 from desfire.schemas import FilePermissions, FileSettings, KeySettings
 
+
+
+logging.getLogger("desfire").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 class NFC():
@@ -132,7 +135,7 @@ class NFC():
         assert rdata == data
 
         logger.info("Personalization finished.")
-        return uid
+        return to_hex_string(uid)
 
 
     def check(self):
@@ -189,7 +192,7 @@ class NFC():
             rdata = desfire.read_file_data(MIFARE_ENCRYPTED_FILE_ID, file_data)
             assert rdata == MIFARE_PICC_MASTER_KEY
             logger.info(f"Card valid.")
-            return uid
+            return ("0x" + to_hex_string(uid).replace(' ', ''))
 
         except Exception as e:
             logger.info(f"Card invalid: {e}")
@@ -248,4 +251,4 @@ class NFC():
         # Format card. WARNING: This will delete all applications and files on the card!
         desfire.format_card()
         logger.info("Card formatted.")
-        return uid
+        return to_hex_string(uid)

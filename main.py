@@ -1,6 +1,6 @@
 import flet as ft
 import time
-import sys
+import platform
 
 from tomlkit.toml_file import TOMLFile
 
@@ -8,8 +8,8 @@ import logging
 
 #import compartment
 #import ui
-#import hardware_V2 as hardware
-import hardware_mock as hardware
+import hardware_V2 as hardware
+#import hardware_mock as hardware
 import flink
 import helpers
 import networking
@@ -212,7 +212,7 @@ class UI():
             title=ft.Text("Ziemann Engineering Schlüsselkasten", size=20, color=ft.Colors.WHITE),
             #title=info_bar,
             center_title=True,
-            actions=[ft.IconButton(on_click=lambda _: self.page_reconfigure(self.service), icon=ft.Icons.HELP_OUTLINE,icon_color=ft.Colors.WHITE, icon_size=30, padding=ft.padding.all(12))],
+            actions=[ft.IconButton(on_click=lambda _: self.page_reconfigure(self.help), icon=ft.Icons.HELP_OUTLINE,icon_color=ft.Colors.WHITE, icon_size=30, padding=ft.padding.all(12))],
             bgcolor="#006688",   
         )       
         
@@ -234,15 +234,15 @@ class UI():
 
             if hardware.light_sensor is not None:
                 try:
-                    light = hardware.light_sensor.visible_plus_ir_light - hardware.light_sensor.ir_light  # check brightness
+                    light = hardware.light_sensor.lux  # check brightness
                     if light > 100:  # > 100 is relatively bright, > 1000 very bright
                         light = 100
                     elif light < 0:
                         light = 0
                     hardware.backlight.duty_cycle = int((0.1 + 0.9 * light / 100) * 65535)
-                    hardware.LED_internal.brightness = 0.1 + 0.9 * light / 100
-                    hardware.LED_connector_1.brightness = 0.1 + 0.9 * light / 100
-                    hardware.LED_connector_2.brightness = 0.1 + 0.9 * light / 100
+                    #hardware.LED_internal.brightness = 0.1 + 0.9 * light / 100
+                    #hardware.LED_connector_1.brightness = 0.1 + 0.9 * light / 100
+                    #hardware.LED_connector_2.brightness = 0.1 + 0.9 * light / 100
                 except Exception as e:
                     logger.error(f"Error getting ambient brightness: {e}")
 
@@ -269,11 +269,15 @@ class UI():
                         # check if NFC tag is present, timeout=1s
                         
             if self.returning in self.page or self.welcome in self.page:
-                uid = nfc.check()
-                if uid is not None:             
+                uid = nfc.check()               
+                if uid is not None:
+                    logging.info(f"NFC tag with UID {uid} was scanned.")                
                     for comp, comp_tags in settings["NFC-tags"].items():
                         if uid in comp_tags:
-                            self.open_compartment(comp, "return")
+                            if comp == "service":
+                                self.page_reconfigure(self.service)
+                            else:
+                                self.open_compartment(comp, "return")
             else:
                 time.sleep(1)
             counter += 1
@@ -303,7 +307,7 @@ class UI():
                 dlg = ft.AlertDialog(
                     modal=False,
                     title=ft.Text(title),
-                    content=ft.Text(announcement),
+                    content=ft.Text(announcement, style=ft.TextStyle(color="#006688", weight=ft.FontWeight.BOLD, size=20)),
                     on_dismiss=None)
                 self.page.open(dlg)
                 time.sleep(5)
@@ -431,6 +435,22 @@ class UI():
         
     def reconfigure_appbar():
         pass # TODO
+        
+# check if given code is in dict of valid codes. return compartment and status message
+def check_code(code):
+    if len(code) == 4:  # normal codes have 4 digits
+        status_code, valid_codes = flink.get_codes()  # get codes from Flink
+        if status_code != 200:
+            logger.error(f"Error response from Flink when getting codes: {status_code}")
+            return None, "error"
+        if valid_codes is not None:
+            for comp, comp_codes in valid_codes.items():
+                if code in comp_codes:
+                    return comp, "valid"
+        return None, "invalid"
+    else:
+        return None, "invalid"
+        
 #
 # LOAD SETTINGS
 #
@@ -477,7 +497,7 @@ if mqtt is not None:
 #
 logger.info(f"Ziemann Engineering Schlüsselkasten {ID}")
 logger.info(f"Serial number {SN}, standard compartments: {compartment_number_saved}, large compartments: {len(large_compartments)}")
-logger.info(f"Software: {__version__}, Python: {sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}, OS: {sys.platform}")
+logger.info(f"Software: {__version__}, Python: {platform.python_version()}, OS: {platform.platform()}")
 logger.info(f"Hardware revision: {HW_revision}, Platform: {hardware.platform}")
 #logger.info(f"CPU ID: {hex_format(microcontroller.cpu.uid)}, temperature: {microcontroller.cpu.temperature:.2}°C")
 #logger.info(f"Reset reason: {str(microcontroller.cpu.reset_reason).split('.')[2]}, run reason: {str(supervisor.runtime.run_reason).split('.')[2]}")
