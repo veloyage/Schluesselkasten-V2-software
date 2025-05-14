@@ -39,7 +39,21 @@ class compartment():
         for LED in self.LEDs:
             #self.LED_connector[LED] = color # V1
             # V2
-            self.LED_connector.set_led_color(LED, color)
+            if color == "white":
+                if self.LED_connector.colors == "RGBW":
+                    self.LED_connector.set_led_color(LED, (0,0,0,255))
+                else:
+                    self.LED_connector.set_led_color(LED, (255,255,255))
+            elif color == "off":
+                if self.LED_connector.colors == "RGBW":
+                    self.LED_connector.set_led_color(LED, (0,0,0,0))
+                else:
+                    self.LED_connector.set_led_color(LED, (0,0,0))
+            else:
+                try:
+                    self.LED_connector.set_led_color(LED, color)
+                except:
+                    pass
             self.LED_connector.update_strip(sleep_duration=0.001)                  
             
     def get_inputs(self):
