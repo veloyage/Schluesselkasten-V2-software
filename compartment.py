@@ -37,8 +37,11 @@ class compartment():
 
     def set_LEDs(self, color):
         for LED in self.LEDs:
-            self.LED_connector[LED] = color
-
+            #self.LED_connector[LED] = color # V1
+            # V2
+            self.LED_connector.set_led_color(LED, color)
+            self.LED_connector.update_strip(sleep_duration=0.001)                  
+            
     def get_inputs(self):
         open = True
         for input in self.status_inputs:

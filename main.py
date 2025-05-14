@@ -1,6 +1,6 @@
 import flet as ft
 import time
-import sys
+import platform
 
 from tomlkit.toml_file import TOMLFile
 
@@ -8,12 +8,14 @@ import logging
 
 #import compartment
 #import ui
-#import hardware_V2 as hardware
-import hardware_mock as hardware
+import hardware_V2 as hardware
+#import hardware_mock as hardware
 import flink
 import helpers
 import networking
 from nfc import NFC
+
+import subprocess
 
 # ZE colors: "#006688" and "#8ff040"
 # TODO: GUi watchdog: if no interaction for time x, go back to welcome page
@@ -98,6 +100,7 @@ class UI():
         self.page.window.height = 800
         self.page.window.width = 480
         self.page.window.frameless = True
+        self.page.window.full_screen = True
         self.page.bgcolor = ft.Colors.GREY_200
         self.page.theme = ft.Theme(color_scheme_seed="#006688")
          
@@ -152,13 +155,17 @@ class UI():
                         controls=[
                             ft.Card(content=ft.Container(content=ft.Text(value="Service-Menü", color="#006688", text_align=ft.TextAlign.LEFT, size=35, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=15),color=ft.Colors.WHITE, margin=0),
                             ft.Row([
+                                ft.ElevatedButton(text="App schliessen",on_click=lambda _: self.page.window.close(), color = ft.Colors.WHITE, bgcolor = "#006688", style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=20, text_style=ft.TextStyle(size=20, weight=ft.FontWeight.BOLD)), expand=True),
+                                ft.ElevatedButton(text="App neustarten", on_click=lambda _: subprocess.call("./start.sh"), color = ft.Colors.WHITE, bgcolor = "#006688", style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=20, text_style=ft.TextStyle(size=20, weight=ft.FontWeight.BOLD)), expand=True),
+                                ]),
+                            ft.Row([
                                 ft.ElevatedButton(text="Alle Fächer öffnen",on_click=self.open_all_clicked, color = ft.Colors.WHITE, bgcolor = "#006688", style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=20, text_style=ft.TextStyle(size=20, weight=ft.FontWeight.BOLD)), expand=True),
                                 ft.ElevatedButton(text="Montage-Modus", on_click=self.mounting_clicked, color = ft.Colors.WHITE, bgcolor = "#006688", style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=20, text_style=ft.TextStyle(size=20, weight=ft.FontWeight.BOLD)), expand=True),
                                 ]),
                             ft.Card(ft.Container(self.service_mode, padding = 10), color=ft.Colors.WHITE, margin=0),
                             NumberPad(self.service_callback)
                         ],
-                        spacing=30
+                        spacing=20
                     )
         
         self.booking = ft.Column(
@@ -171,7 +178,7 @@ class UI():
                     )
         
         self.code  = ""  
-        self.code_display = ft.Text(value=self.code, size=199, color="#006688", width = 460, max_lines=1, style=ft.TextStyle(height=0.9))
+        self.code_display = ft.Text(value=self.code, size=180, color="#006688", width = 460, max_lines=1, style=ft.TextStyle(height=0.9))
         self.borrowing = ft.Column(
                         controls=[
                         ft.Card(content=ft.Container(content=ft.Text(value="Ausleihe", color="#006688", text_align=ft.TextAlign.LEFT, size=35, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=15),color=ft.Colors.WHITE, margin=0),
@@ -212,7 +219,7 @@ class UI():
             title=ft.Text("Ziemann Engineering Schlüsselkasten", size=20, color=ft.Colors.WHITE),
             #title=info_bar,
             center_title=True,
-            actions=[ft.IconButton(on_click=lambda _: self.page_reconfigure(self.service), icon=ft.Icons.HELP_OUTLINE,icon_color=ft.Colors.WHITE, icon_size=30, padding=ft.padding.all(12))],
+            actions=[ft.IconButton(on_click=lambda _: self.page_reconfigure(self.help), icon=ft.Icons.HELP_OUTLINE,icon_color=ft.Colors.WHITE, icon_size=30, padding=ft.padding.all(12))],
             bgcolor="#006688",   
         )       
         
@@ -223,6 +230,9 @@ class UI():
         ### Do background tasks
         #
         counter = 0
+        min_backlight = 3 # minimum screen brightness in %
+        max_brightness = 50 # screen is at maximum brightness at this lux level
+       
         while True:
             # check connectivity and update icon, reconnect handled at system level
             
@@ -234,15 +244,14 @@ class UI():
 
             if hardware.light_sensor is not None:
                 try:
-                    light = hardware.light_sensor.visible_plus_ir_light - hardware.light_sensor.ir_light  # check brightness
-                    if light > 100:  # > 100 is relatively bright, > 1000 very bright
-                        light = 100
-                    elif light < 0:
-                        light = 0
-                    hardware.backlight.duty_cycle = int((0.1 + 0.9 * light / 100) * 65535)
-                    hardware.LED_internal.brightness = 0.1 + 0.9 * light / 100
-                    hardware.LED_connector_1.brightness = 0.1 + 0.9 * light / 100
-                    hardware.LED_connector_2.brightness = 0.1 + 0.9 * light / 100
+                    ambient_brightness = hardware.light_sensor.lux  # check brightness
+                    display_brightness = min_backlight + (100 - min_backlight) * ambient_brightness/max_brightness
+                    if display_brightness > 100:
+                        display_brightness = 100
+                    hardware.backlight.change_duty_cycle(display_brightness)
+                    #hardware.LED_internal.brightness = 0.1 + 0.9 * light / 100
+                    #hardware.LED_connector_1.brightness = 0.1 + 0.9 * light / 100
+                    #hardware.LED_connector_2.brightness = 0.1 + 0.9 * light / 100
                 except Exception as e:
                     logger.error(f"Error getting ambient brightness: {e}")
 
@@ -250,7 +259,7 @@ class UI():
             if counter == 300:  # runs roughly every 5 minutes
                 counter = 0
                 # send status as keepalive
-                status_code = flink.put_status(time.monotonic(), SN, __version__, compartment_number_saved, large_compartments)
+                status_code = flink.put_status(time.monotonic(), SN, __version__, small_compartments, large_compartments)
                 if status_code != 200:
                     logger.warning(f"Response from Flink: {status_code}.")
                     #ui.no_flink_grid.hidden = False
@@ -266,14 +275,18 @@ class UI():
                     else:
                         #ui.low_battery_grid.hidden = True
                         pass
-                        # check if NFC tag is present, timeout=1s
                         
-            if self.returning in self.page or self.welcome in self.page:
-                uid = nfc.check()
-                if uid is not None:             
+            # check if NFC tag is present, timeout=1s                       
+            if (self.returning in self.page or self.welcome in self.page) and nfc is not None:
+                uid = nfc.check()               
+                if uid is not None:
+                    logging.info(f"NFC tag with UID {uid} was scanned.")                
                     for comp, comp_tags in settings["NFC-tags"].items():
                         if uid in comp_tags:
-                            self.open_compartment(comp, "return")
+                            if comp == "service":
+                                self.page_reconfigure(self.service)
+                            else:
+                                self.open_compartment(comp, "return")
             else:
                 time.sleep(1)
             counter += 1
@@ -303,8 +316,10 @@ class UI():
                 dlg = ft.AlertDialog(
                     modal=False,
                     title=ft.Text(title),
-                    content=ft.Text(announcement),
-                    on_dismiss=None)
+                    content=ft.Text(announcement, style=ft.TextStyle(size=20)),
+                    on_dismiss=None,
+                    #barrier_color="#66660000"
+                    )
                 self.page.open(dlg)
                 time.sleep(5)
                 self.page.close(dlg)
@@ -320,20 +335,21 @@ class UI():
         if data == "x":
             self.compartment = ""
         elif data == "ok":
-            # self.run_service(self.compartment, self.service_mode.value)
             if self.service_mode.value == "open":
-                self.open_compartment(self.compartment, "service")
-                logger.info(f"Compartment {self.compartment} was opened from service mode, content status: {hardware.compartments[self.compartment].content_status}, door status: {hardware.compartments[self.compartment].door_status}.")
+                success = self.open_compartment(self.compartment, "service")
+                if success:
+                    logger.info(f"Compartment {self.compartment} was opened from service mode, content status: {hardware.compartments[self.compartment].content_status}, door status: {hardware.compartments[self.compartment].door_status}.")
             elif self.service_mode.value == "program":
                 # nfc_personalize, write dict, save to toml
                 dlg_modal = ft.AlertDialog(
                     modal=True,
                     title=ft.Text("NFC-Tag programmieren"),
-                    content=ft.Text(f"Bitte den NFC-Tag für Fach {self.compartment} rechts an den Leser halten, bis der Vorgang abgeschlossen ist."),
-                    actions=[ft.TextButton("Abbrechen", on_click=lambda e: self.page.close(dlg_modal))],
+                    content=ft.Text(f"Bitte den NFC-Tag für Fach {self.compartment} rechts an den Leser halten, bis der Vorgang abgeschlossen ist.", style=ft.TextStyle(size=20)),
+                    actions=[ft.TextButton("Abbrechen", on_click=lambda e: self.page.close(dlg_modal), style=ft.ButtonStyle(text_style=ft.TextStyle(size=20, weight=ft.FontWeight.BOLD)))],
                     on_dismiss=None)
                 self.page.open(dlg_modal)
-                uid = nfc.personalize()
+                if nfc is not None:
+                    uid = nfc.personalize()
                 self.page.close(dlg_modal)
                 if uid is not None:
                     settings["NFC-tags"][self.compartment].append(uid)
@@ -346,8 +362,7 @@ class UI():
                 dlg_modal = ft.AlertDialog(
                     modal=True,
                     title=ft.Text("Fach zurückgesetzt"),
-                    content=ft.Text(f"Die gespeicherten NFC-Tags für Fach {self.compartment} wurden gelöscht."),
-                    actions=[ft.TextButton("Ok", on_click=lambda e: self.page.close(dlg_modal))],
+                    content=ft.Text(f"Die gespeicherten NFC-Tags für Fach {self.compartment} wurden gelöscht.", style=ft.TextStyle(size=20)),
                     on_dismiss=None)
                 self.page.open(dlg_modal)
                 settings["NFC-tags"][self.compartment] = []
@@ -363,16 +378,16 @@ class UI():
             dlg = ft.AlertDialog(
                     modal=False,
                     title=ft.Text("Ungültiges Fach"),
-                    content=ft.Text(f"Fach {compartment} existiert nicht."),
+                    content=ft.Text(f"Fach {compartment} existiert nicht.",  style=ft.TextStyle(size=20)),
                     on_dismiss=None)
             self.page.open(dlg)
             time.sleep(3)
             self.page.close(dlg)
-            return
+            return False
         dlg = ft.AlertDialog(
                     modal=False,
                     title=ft.Text("Fach öffnen"),
-                    content=ft.Text(f"Fach {compartment} wird geöffnet."),
+                    content=ft.Text(f"Fach {compartment} wird geöffnet.",  style=ft.TextStyle(size=20)),
                     on_dismiss=None)
         self.page.open(dlg)
         success = hardware.compartments[compartment].open()
@@ -406,8 +421,9 @@ class UI():
         dlg_modal = ft.AlertDialog(
                     modal=True,
                     title=ft.Text("Fach wurde geöffnet"),
-                    content=ft.Text(f"{announcement} {question}"),
-                    actions=[ft.TextButton("Nein", on_click=lambda e: self.close_modal(dlg_modal, destination_no)), ft.TextButton("Ja", on_click=lambda e: self.close_modal(dlg_modal, destination_yes))],
+                    content=ft.Text(f"{announcement} {question}",  style=ft.TextStyle(size=20)),
+                    actions=[ft.TextButton("Nein", on_click=lambda e: self.close_modal(dlg_modal, destination_no), style=ft.ButtonStyle(text_style=ft.TextStyle(size=20, weight=ft.FontWeight.BOLD))), 
+                             ft.TextButton("Ja", on_click=lambda e: self.close_modal(dlg_modal, destination_yes), style=ft.ButtonStyle(text_style=ft.TextStyle(size=20, weight=ft.FontWeight.BOLD)))],
                     on_dismiss=None)
         self.page.open(dlg_modal)
         # close dialog if no user reaction
@@ -416,6 +432,7 @@ class UI():
             time.sleep(0.1)
         if dlg_modal.open == True:
             self.close_modal(dlg_modal, self.welcome)
+        return True
         
     def close_modal(self, dialog, destination):
         self.page.close(dialog)
@@ -431,6 +448,22 @@ class UI():
         
     def reconfigure_appbar():
         pass # TODO
+        
+# check if given code is in dict of valid codes. return compartment and status message
+def check_code(code):
+    if len(code) == 4:  # normal codes have 4 digits
+        status_code, valid_codes = flink.get_codes()  # get codes from Flink
+        if status_code != 200:
+            logger.error(f"Error response from Flink when getting codes: {status_code}")
+            return None, "error"
+        if valid_codes is not None:
+            for comp, comp_codes in valid_codes.items():
+                if code in comp_codes:
+                    return comp, "valid"
+        return None, "invalid"
+    else:
+        return None, "invalid"
+        
 #
 # LOAD SETTINGS
 #
@@ -441,7 +474,7 @@ ID = settings["ID"]
 SN = settings["SN"]
 HW_revision = settings["HW_revision"]
 
-compartment_number_saved = settings["COMPARTMENT_NUMBER"]
+small_compartments = settings["SMALL_COMPARTMENTS"]
 large_compartments = settings["LARGE_COMPARTMENTS"]
 
 aio_username = settings["ADAFRUIT_IO_USERNAME"]
@@ -476,8 +509,8 @@ if mqtt is not None:
 # INFO MESSAGES
 #
 logger.info(f"Ziemann Engineering Schlüsselkasten {ID}")
-logger.info(f"Serial number {SN}, standard compartments: {compartment_number_saved}, large compartments: {len(large_compartments)}")
-logger.info(f"Software: {__version__}, Python: {sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}, OS: {sys.platform}")
+logger.info(f"Serial number {SN}, standard compartments: {small_compartments}, large compartments: {large_compartments}")
+logger.info(f"Software: {__version__}, Python: {platform.python_version()}, OS: {platform.platform()}")
 logger.info(f"Hardware revision: {HW_revision}, Platform: {hardware.platform}")
 #logger.info(f"CPU ID: {hex_format(microcontroller.cpu.uid)}, temperature: {microcontroller.cpu.temperature:.2}°C")
 #logger.info(f"Reset reason: {str(microcontroller.cpu.reset_reason).split('.')[2]}, run reason: {str(supervisor.runtime.run_reason).split('.')[2]}")
@@ -488,7 +521,7 @@ else:
     logger.warning("Ping to google failed.")
 
 flink = flink.Flink(ID, settings["FLINK_URL"], settings["FLINK_API_KEY"])
-status_code = flink.put_status(time.monotonic(), SN, __version__, compartment_number_saved, large_compartments)
+status_code = flink.put_status(time.monotonic(), SN, __version__, small_compartments, large_compartments)
 if status_code == 200:
     logger.info(f"Response from Flink: {status_code}.")
 else:
@@ -503,14 +536,19 @@ if hardware.battery_monitor is not None:
     logger.info(f"Battery status: {hardware.battery_monitor.cell_voltage:.2f}V, {hardware.battery_monitor.cell_percent:.1f} %")
 
 logger.info(f"{len(hardware.port_expanders)} compartment PCBs / rows detected.")
-if len(hardware.port_expanders)*8 < compartment_number_saved:
+if len(hardware.port_expanders)*8 < small_compartments:
     logger.error("Insufficient compartment PCBs detected.")
     #ui.maintainance_grid.hidden = False
 
 # initialize the compartment PCBs / port expanders
 hardware.init_port_expanders(large_compartments)
 
-nfc = NFC(settings["NFC"], hardware.nfc_serial)
+try: 
+    nfc = NFC(settings["NFC"], hardware.nfc_serial)
+except Exception as e:
+    nfc = None
+    logger.error(f"Error setting up NFC: {e}")
+    
 
 open_comps = helpers.check_all(hardware.compartments)
 if len(open_comps) != 0:

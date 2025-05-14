@@ -4,7 +4,8 @@ import logging
 import platform    # For getting the operating system name
 import subprocess  # For executing a shell command
 
-from hardware_mock import compartments, reset
+from hardware_V2 import compartments#, reset
+#from main import UI
 import helpers
 
 logger = logging.getLogger(__name__)
@@ -82,8 +83,10 @@ def process_mqtt_command(payload):
             compartments[comp].open()
         logger.info(f"Compartment open sent from MQTT broker: {comp}")
     elif command == "reset" and len(payload) == 1:
-        reset()
-    # elif command == "tamper_alarm" and len(payload) == 2:
+       subprocess.call("./start.sh")
+    #elif command == "service" and len(payload) == 1:    
+       #UI.page_reconfigure(UI.service)
+    #elif command == "tamper_alarm" and len(payload) == 2:
         # global tamper_alarm
         # if payload[1] == "off":
             # tamper_alarm = "off"
@@ -97,5 +100,5 @@ class AIOLogHandler(logging.Handler):
     def emit(self, record):
         try:
             self.mqtt.publish(self.mqtt.feed_name + "-status", self.format(record))
-        except Exception as e:  # ignore exception, logging would trigger further exceptions
+        except Exception as e:  # logging would trigger further exceptions
             print(f"Error when logging to MQTT broker: {e}")

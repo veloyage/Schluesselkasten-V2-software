@@ -14,13 +14,23 @@ import adafruit_drv2605 # haptic driver
 
 import platform    # For getting the operating system name
 import subprocess  # For executing a shell command
+import logging
 
 import compartment
 
 from pi5neo import Pi5Neo as SPIneo
 
-# version string
+from rpi_hardware_pwm import HardwarePWM
+
+logger = logging.getLogger(__name__)
+
+# infos
 __version__ = "2.0.0-alpha1"
+
+platform = board.board_id
+
+nfc_serial = "/dev/ttyAMA3"
+
     
 # 4 separate buses on V2
 i2c_sys = I2C(4)  # Device is /dev/i2c-4
@@ -28,8 +38,18 @@ i2c_ext1 = I2C(1)  # Device is /dev/i2c-1
 i2c_ext2 = I2C(5)  # Device is /dev/i2c-5
 i2c_ee = I2C(0)  # Device is /dev/i2c-0
 
+# PWM
+# display backlight
+backlight = HardwarePWM(pwm_channel=1, hz=10000, chip=0)
+backlight.start(50) # full duty cycle
 
-backlight = pwmio.PWMOut(board.D19, frequency=1000, duty_cycle=int(1 * 65535))
+# piezo buzzer
+piezo = HardwarePWM(pwm_channel=0, hz=1000, chip=0)
+#backlight.start(50) # 50%
+#pwm.change_duty_cycle(50)
+#pwm.change_frequency(25_000)
+#pwm.stop()
+
 # set up diode on pin
 supply_present = digitalio.DigitalInOut(board.D25)
 supply_present.direction = digitalio.Direction.INPUT
@@ -48,12 +68,18 @@ lock_int = digitalio.DigitalInOut(board.D22)
 lock_int.direction = digitalio.Direction.INPUT
 
 ## LED config 
-LED_connector_1 = SPIneo('/dev/spidev1.0', 30, 1000)
-LED_connector_2 = SPIneo('/dev/spidev4.0', 30, 1000)
+LED_connector_1 = SPIneo('/dev/spidev1.0', 40, 1200)
+#LED_connector_2 = SPIneo('/dev/spidev4.0', 40, 1000)
 LED_connector_3 = SPIneo('/dev/spidev0.0', 3, 1000, "RGBW")
 
-# piezo buzzer
-piezo = pwmio.PWMOut(board.D18, frequency=1000, duty_cycle=0)
+LED_connector_1.clear_strip()
+LED_connector_1.update_strip(sleep_duration=0.001)
+#LED_connector_2.clear_strip()
+#LED_connector_2.update_strip(sleep_duration=0.001)
+LED_connector_3.clear_strip()
+LED_connector_3.update_strip(sleep_duration=0.001)
+
+
 
 # vcgencmd get_rsts, 1000 = power on, 1020 = reset button, 20 = sudo reboot
 # vcgencmd get_throttled to log undervoltage, overtemp etc
@@ -66,7 +92,7 @@ try:
     haptic.sequence[0] = adafruit_drv2605.Effect(5) # effect 1: strong click, 4: sharp click 100%, 5: sharp click 60%,  24: sharp tick,  27: short double click strong, 16: 1000 ms alert, 21: medium click, 
 except Exception as e:
     haptic = None
-    #TODO: logger.error(f"Error setting up haptic engine: {e}")
+    logger.error(f"Error setting up haptic engine: {e}")
     
 # autocal results with DRIVE_TIME / 0x1B[4:0] = 25, RATED_VOLTAGE / reg 0x16 = 104, OD_CLAMP / 0x17 = 150
 # >>> haptic._read_u8(0x18)
@@ -80,20 +106,20 @@ try:
     accelerometer = adafruit_lis3dh.LIS3DH_I2C(i2c_sys, address=0x19)
 except Exception as e:
     accelerometer = None
-    #TODO: logger.error(f"Error setting up accelerometer: {e}")
+    logger.error(f"Error setting up accelerometer: {e}")
 
 try:
     light_sensor = adafruit_veml7700.VEML7700(i2c_sys) # 0x10 read: light_sensor.lux
 except Exception as e:
     light_sensor = None
-    #TODO: logger.error(f"Error setting up brightness sensor: {e}")
+    logger.error(f"Error setting up brightness sensor: {e}")
 
 try: 
     # TODO: add support for the BQ34210
     battery_monitor = None
 except Exception:
     battery_monitor = None
-    #TODO: logger.error(f"Error setting up battery monitor: {e}")
+    logger.error(f"Error setting up battery monitor: {e}")
 
 # get connected port expanders on two buses (adresses from 0x20 to 0x27, prototype PCBs: 0x24 to 0x27)
 # first bus/connector        
@@ -119,13 +145,12 @@ def init_port_expanders(large_compartments):
     # for V2, large compartments can be on connector 6 of each PCB
     # starting with PCB 1, going to 2 and 3 if 3 compartments are present
     # create compartment objects with IO ports, and a dict for all of them
-    # first numerical for small comps and then alphabetical for large comps
     
     compartments_per_row = 5
     global port_expanders, compartments
 
     counter = 1
-    # normal compartments
+    # normal compartments, 1 to n*5 (n = number of port expanders)
     for index, expander in enumerate(port_expanders):
         # enable PCB activity LED
         LED_pin = expander.get_pin(15)
@@ -142,15 +167,14 @@ def init_port_expanders(large_compartments):
             compartments[f"{counter}"] = new_compartment
             counter += 1
             
-    # large compartments
-    counter = 0
-    for index, large_compartment in enumerate(large_compartments):
+    # large compartments, n*5 + 1 to n*5 + n (e.g. 21 to 24 for n = 4)
+    for index in range(large_compartments):
         if len(port_expanders) > index:
             expander = port_expanders[index]
             input_pin = expander.get_pin(compartments_per_row * 2)
             output_pin = expander.get_pin(compartments_per_row * 2 + 1)
             new_compartment = compartment.compartment(input_pin, output_pin)
-            new_compartment.LEDs = [counter]
+            new_compartment.LEDs = [index]
             new_compartment.LED_connector = LED_connector_3
-            compartments[large_compartment] = new_compartment
+            compartments[f"{counter}"] = new_compartment
             counter += 1

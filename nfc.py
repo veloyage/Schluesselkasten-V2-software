@@ -9,6 +9,9 @@ from desfire import DESFire, DESFireKey, diversify_key, get_list, to_hex_string,
 from desfire.enums import DESFireCommunicationMode, DESFireFileType, DESFireKeySettings, DESFireKeyType
 from desfire.schemas import FilePermissions, FileSettings, KeySettings
 
+
+
+logging.getLogger("desfire").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 class NFC():
@@ -17,11 +20,12 @@ class NFC():
         self.app_id = get_list(bytearray(settings["app_id"], 'utf-8'))
         self.sys_id = settings["sys_id"]
         self.attempts = 20
+        self.port = port
         
-        # Create physical self.device which can be used to detect a card
-        self.device = PN532UARTDevice(port, baudrate=115200, timeout=0.1)   
-
     def personalize(self):
+        # Create physical self.device which can be used to detect a card
+        self.device = PN532UARTDevice(self.port, baudrate=115200, timeout=0.1)   
+        
         MIFARE_PICC_MASTER_KEY = self.masterkey
         MIFARE_APP_ID = self.app_id  # ZEK = 5a454b = 90, 69, 75
         MIFARE_ACL_READ_BASE_KEY_ID = 0x0
@@ -132,11 +136,13 @@ class NFC():
         assert rdata == data
 
         logger.info("Personalization finished.")
-        return uid
+        return ("0x" + to_hex_string(uid).replace(' ', ''))
 
 
     def check(self):
-
+        # Create physical self.device which can be used to detect a card
+        self.device = PN532UARTDevice(self.port, baudrate=115200, timeout=0.1)  
+        
         MIFARE_PICC_MASTER_KEY = self.masterkey
         MIFARE_APP_ID = self.app_id  # ZEK = 5a454b = 90, 69, 75
         MIFARE_ACL_READ_BASE_KEY_ID = 0x0
@@ -188,15 +194,17 @@ class NFC():
 
             rdata = desfire.read_file_data(MIFARE_ENCRYPTED_FILE_ID, file_data)
             assert rdata == MIFARE_PICC_MASTER_KEY
-            logger.info(f"Card valid.")
-            return uid
+            #logger.info(f"Card valid.")
+            return ("0x" + to_hex_string(uid).replace(' ', ''))
 
         except Exception as e:
             logger.info(f"Card invalid: {e}")
             return None
 
     def format(self):
-
+        # Create physical self.device which can be used to detect a card
+        self.device = PN532UARTDevice(self.port, baudrate=115200, timeout=0.1)  
+        
         MIFARE_PICC_MASTER_KEY = self.masterkey
         
         # Wait for a card
@@ -248,4 +256,4 @@ class NFC():
         # Format card. WARNING: This will delete all applications and files on the card!
         desfire.format_card()
         logger.info("Card formatted.")
-        return uid
+        return ("0x" + to_hex_string(uid).replace(' ', ''))
