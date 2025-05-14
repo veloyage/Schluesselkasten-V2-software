@@ -21,7 +21,6 @@ import compartment
 from pi5neo import Pi5Neo as SPIneo
 
 from rpi_hardware_pwm import HardwarePWM
-
 logger = logging.getLogger(__name__)
 
 # infos

@@ -21,7 +21,7 @@ import subprocess
 # TODO: GUi watchdog: if no interaction for time x, go back to welcome page
 
 # version string
-__version__ = "2.0.0-alpha1"
+__version__ = "2.0.0-alpha2"
 
 class DigitButton(ft.ElevatedButton):
     def __init__(self, button_clicked, text = None):
@@ -249,6 +249,7 @@ class UI():
                     if display_brightness > 100:
                         display_brightness = 100
                     hardware.backlight.change_duty_cycle(display_brightness)
+
                     #hardware.LED_internal.brightness = 0.1 + 0.9 * light / 100
                     #hardware.LED_connector_1.brightness = 0.1 + 0.9 * light / 100
                     #hardware.LED_connector_2.brightness = 0.1 + 0.9 * light / 100
