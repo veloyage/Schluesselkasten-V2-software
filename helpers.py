@@ -1,4 +1,3 @@
-import flink
 import logging
 
 
@@ -29,17 +28,3 @@ def open_mounting(compartments):
         compartments["56"].open()
         compartments["60"].open()
 
-# check if given code is in dict of valid codes. return compartment and status message
-def check_code(code):
-    if len(code) == 4:  # normal codes have 4 digits
-        status_code, valid_codes = flink.get_codes()  # get codes from Flink
-        if status_code != 200:
-            logger.error(f"Error response from Flink when getting codes: {status_code}")
-            return None, "error"
-        if valid_codes is not None:
-            for comp, comp_codes in valid_codes.items():
-                if code in comp_codes:
-                    return comp, "valid"
-        return None, "invalid"
-    else:
-        return None, "invalid"

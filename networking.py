@@ -4,7 +4,8 @@ import logging
 import platform    # For getting the operating system name
 import subprocess  # For executing a shell command
 
-from hardware_V2 import compartments#, reset
+from hardware_V2 import compartments
+#from hardware_mock import compartments
 #from main import UI
 import helpers
 

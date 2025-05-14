@@ -21,7 +21,7 @@ import subprocess
 # TODO: GUi watchdog: if no interaction for time x, go back to welcome page
 
 # version string
-__version__ = "2.0.0-alpha1"
+__version__ = "2.0.0-alpha2"
 
 class DigitButton(ft.ElevatedButton):
     def __init__(self, button_clicked, text = None):
@@ -244,11 +244,27 @@ class UI():
 
             if hardware.light_sensor is not None:
                 try:
+<<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> b26d54f3d84b270a550f57ba16a3d6010fab8c88
                     ambient_brightness = hardware.light_sensor.lux  # check brightness
                     display_brightness = min_backlight + (100 - min_backlight) * ambient_brightness/max_brightness
                     if display_brightness > 100:
                         display_brightness = 100
                     hardware.backlight.change_duty_cycle(display_brightness)
+<<<<<<< HEAD
+=======
+                    light = hardware.light_sensor.lux  # check brightness
+                    if light > 100:  # > 100 is relatively bright, > 1000 very bright
+                        light = 100
+                    elif light < 0:
+                        light = 0
+                    hardware.backlight.duty_cycle = int((0.1 + 0.9 * light / 100) * 65535)
+>>>>>>> dfe213c1eb428d11fe7a369b26170cce5a16d049
+=======
+
+>>>>>>> b26d54f3d84b270a550f57ba16a3d6010fab8c88
                     #hardware.LED_internal.brightness = 0.1 + 0.9 * light / 100
                     #hardware.LED_connector_1.brightness = 0.1 + 0.9 * light / 100
                     #hardware.LED_connector_2.brightness = 0.1 + 0.9 * light / 100
@@ -276,8 +292,17 @@ class UI():
                         #ui.low_battery_grid.hidden = True
                         pass
                         
+<<<<<<< HEAD
+<<<<<<< HEAD
             # check if NFC tag is present, timeout=1s                       
             if (self.returning in self.page or self.welcome in self.page) and nfc is not None:
+=======
+            if self.returning in self.page or self.welcome in self.page:
+>>>>>>> dfe213c1eb428d11fe7a369b26170cce5a16d049
+=======
+            # check if NFC tag is present, timeout=1s                       
+            if (self.returning in self.page or self.welcome in self.page) and nfc is not None:
+>>>>>>> b26d54f3d84b270a550f57ba16a3d6010fab8c88
                 uid = nfc.check()               
                 if uid is not None:
                     logging.info(f"NFC tag with UID {uid} was scanned.")                
@@ -316,10 +341,21 @@ class UI():
                 dlg = ft.AlertDialog(
                     modal=False,
                     title=ft.Text(title),
+<<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> b26d54f3d84b270a550f57ba16a3d6010fab8c88
                     content=ft.Text(announcement, style=ft.TextStyle(size=20)),
                     on_dismiss=None,
                     #barrier_color="#66660000"
                     )
+<<<<<<< HEAD
+=======
+                    content=ft.Text(announcement, style=ft.TextStyle(color="#006688", weight=ft.FontWeight.BOLD, size=20)),
+                    on_dismiss=None)
+>>>>>>> dfe213c1eb428d11fe7a369b26170cce5a16d049
+=======
+>>>>>>> b26d54f3d84b270a550f57ba16a3d6010fab8c88
                 self.page.open(dlg)
                 time.sleep(5)
                 self.page.close(dlg)
@@ -509,7 +545,15 @@ if mqtt is not None:
 # INFO MESSAGES
 #
 logger.info(f"Ziemann Engineering Schlüsselkasten {ID}")
+<<<<<<< HEAD
+<<<<<<< HEAD
 logger.info(f"Serial number {SN}, standard compartments: {small_compartments}, large compartments: {large_compartments}")
+=======
+logger.info(f"Serial number {SN}, standard compartments: {compartment_number_saved}, large compartments: {len(large_compartments)}")
+>>>>>>> dfe213c1eb428d11fe7a369b26170cce5a16d049
+=======
+logger.info(f"Serial number {SN}, standard compartments: {small_compartments}, large compartments: {large_compartments}")
+>>>>>>> b26d54f3d84b270a550f57ba16a3d6010fab8c88
 logger.info(f"Software: {__version__}, Python: {platform.python_version()}, OS: {platform.platform()}")
 logger.info(f"Hardware revision: {HW_revision}, Platform: {hardware.platform}")
 #logger.info(f"CPU ID: {hex_format(microcontroller.cpu.uid)}, temperature: {microcontroller.cpu.temperature:.2}°C")

@@ -136,7 +136,17 @@ class NFC():
         assert rdata == data
 
         logger.info("Personalization finished.")
+<<<<<<< HEAD
+<<<<<<< HEAD
         return ("0x" + to_hex_string(uid).replace(' ', ''))
+=======
+        return to_hex_string(uid)
+>>>>>>> dfe213c1eb428d11fe7a369b26170cce5a16d049
+=======
+
+        return ("0x" + to_hex_string(uid).replace(' ', ''))
+
+>>>>>>> b26d54f3d84b270a550f57ba16a3d6010fab8c88
 
 
     def check(self):
@@ -194,7 +204,17 @@ class NFC():
 
             rdata = desfire.read_file_data(MIFARE_ENCRYPTED_FILE_ID, file_data)
             assert rdata == MIFARE_PICC_MASTER_KEY
+<<<<<<< HEAD
+<<<<<<< HEAD
             #logger.info(f"Card valid.")
+=======
+            logger.info(f"Card valid.")
+>>>>>>> dfe213c1eb428d11fe7a369b26170cce5a16d049
+=======
+
+            #logger.info(f"Card valid.")
+
+>>>>>>> b26d54f3d84b270a550f57ba16a3d6010fab8c88
             return ("0x" + to_hex_string(uid).replace(' ', ''))
 
         except Exception as e:
@@ -256,4 +276,13 @@ class NFC():
         # Format card. WARNING: This will delete all applications and files on the card!
         desfire.format_card()
         logger.info("Card formatted.")
+<<<<<<< HEAD
+<<<<<<< HEAD
         return ("0x" + to_hex_string(uid).replace(' ', ''))
+=======
+        return to_hex_string(uid)
+>>>>>>> dfe213c1eb428d11fe7a369b26170cce5a16d049
+=======
+
+        return ("0x" + to_hex_string(uid).replace(' ', ''))
+>>>>>>> b26d54f3d84b270a550f57ba16a3d6010fab8c88

@@ -20,8 +20,15 @@ import compartment
 
 from pi5neo import Pi5Neo as SPIneo
 
+<<<<<<< HEAD
+<<<<<<< HEAD
 from rpi_hardware_pwm import HardwarePWM
 
+=======
+>>>>>>> dfe213c1eb428d11fe7a369b26170cce5a16d049
+=======
+from rpi_hardware_pwm import HardwarePWM
+>>>>>>> b26d54f3d84b270a550f57ba16a3d6010fab8c88
 logger = logging.getLogger(__name__)
 
 # infos
@@ -68,9 +75,28 @@ lock_int = digitalio.DigitalInOut(board.D22)
 lock_int.direction = digitalio.Direction.INPUT
 
 ## LED config 
+<<<<<<< HEAD
+<<<<<<< HEAD
 LED_connector_1 = SPIneo('/dev/spidev1.0', 40, 1200)
 #LED_connector_2 = SPIneo('/dev/spidev4.0', 40, 1000)
 LED_connector_3 = SPIneo('/dev/spidev0.0', 3, 1000, "RGBW")
+=======
+LED_connector_1 = SPIneo('/dev/spidev1.0', 30, 1000)
+#LED_connector_2 = SPIneo('/dev/spidev4.0', 30, 1000)
+LED_connector_3 = SPIneo('/dev/spidev0.0', 3, 1200, "RGBW")
+
+LED_connector_1.clear_strip()
+LED_connector_1.update_strip(sleep_duration=0.001)
+#LED_connector_2.clear_strip()
+#LED_connector_2.update_strip(sleep_duration=0.001)
+LED_connector_3.clear_strip()
+LED_connector_3.update_strip(sleep_duration=0.001)
+>>>>>>> dfe213c1eb428d11fe7a369b26170cce5a16d049
+=======
+LED_connector_1 = SPIneo('/dev/spidev1.0', 40, 1200)
+#LED_connector_2 = SPIneo('/dev/spidev4.0', 40, 1000)
+LED_connector_3 = SPIneo('/dev/spidev0.0', 3, 1000, "RGBW")
+>>>>>>> b26d54f3d84b270a550f57ba16a3d6010fab8c88
 
 LED_connector_1.clear_strip()
 LED_connector_1.update_strip(sleep_duration=0.001)
