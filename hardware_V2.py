@@ -25,7 +25,7 @@ from rpi_hardware_pwm import HardwarePWM
 logger = logging.getLogger(__name__)
 
 # infos
-__version__ = "2.0.0-alpha1"
+__version__ = "2.0.0-alpha3"
 
 platform = board.board_id
 
