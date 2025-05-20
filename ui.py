@@ -1,7 +1,9 @@
 import flet as ft
 import time
+import subprocess
 
 import logging
+import platform
 
 import helpers
 import hardware_V2 as hardware
@@ -78,13 +80,14 @@ class NumberPad(ft.Container):
     
 
 class UI():
-    def __init__(self, settings, toml, flink, nfc, background_tasks):
+    def __init__(self, settings, toml, flink, nfc, errors, background_tasks):
         self.__page = None
         self.main_color = settings["UI_color"]
         self.settings = settings
         self.toml = toml
         self.flink = flink
         self.nfc = nfc
+        self.errors = errors
         self.background_tasks = background_tasks
         
     def __call__(self, flet_page: ft.Page):
@@ -140,32 +143,64 @@ class UI():
         
         self.compartment  = ""  
         self.service_mode = ft.RadioGroup(content=ft.Column([
-                                ft.Radio(value="open", label="Einzelnes Fach öffnen", label_style=ft.TextStyle(color=self.main_color, weight=ft.FontWeight.BOLD, size=20), active_color=self.main_color),
-                                ft.Radio(value="program", label="NFC-Tag einem Fach zuweisen", label_style=ft.TextStyle(color=self.main_color, weight=ft.FontWeight.BOLD, size=20), active_color=self.main_color),
-                                ft.Radio(value="reset", label="Fach-Tag-Zuweisung zurücksetzen", label_style=ft.TextStyle(color=self.main_color, weight=ft.FontWeight.BOLD, size=20), active_color=self.main_color)]))
+                                ft.Radio(value="open", label="Einzelnes Fach öffnen", label_style=ft.TextStyle(color=self.main_color, weight=ft.FontWeight.BOLD, size=24), active_color=self.main_color),
+                                ft.Radio(value="program", label="NFC-Tag einem Fach zuweisen", label_style=ft.TextStyle(color=self.main_color, weight=ft.FontWeight.BOLD, size=24), active_color=self.main_color),
+                                ft.Radio(value="reset", label="Fach-Tag-Zuweisung zurücksetzen", label_style=ft.TextStyle(color=self.main_color, weight=ft.FontWeight.BOLD, size=24), active_color=self.main_color)]))
         self.service_mode.value = "open"                        
         self.service = ft.Column(
                         controls=[
                             ft.Card(content=ft.Container(content=ft.Text(value="Service-Menü", color=self.main_color, text_align=ft.TextAlign.LEFT, size=35, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=15),color=ft.Colors.WHITE, margin=0),
                             ft.Row([
-                                ft.ElevatedButton(text="App schliessen",on_click=lambda _: self.page.window.close(), color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=20, text_style=ft.TextStyle(size=20, weight=ft.FontWeight.BOLD)), expand=True),
-                                ft.ElevatedButton(text="App neustarten", on_click=lambda _: subprocess.call("./start.sh"), color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=20, text_style=ft.TextStyle(size=20, weight=ft.FontWeight.BOLD)), expand=True),
+                                ft.ElevatedButton(text="App schliessen",on_click=lambda _: self.page.window.close(), color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=20, text_style=ft.TextStyle(size=24, weight=ft.FontWeight.BOLD)), expand=True),
+                                ft.ElevatedButton(text="App neustarten", on_click=lambda _: subprocess.call("./start.sh"), color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=20, text_style=ft.TextStyle(size=24, weight=ft.FontWeight.BOLD)), expand=True),
                                 ]),
                             ft.Row([
-                                ft.ElevatedButton(text="Alle Fächer öffnen",on_click=self.open_all_clicked, color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=20, text_style=ft.TextStyle(size=20, weight=ft.FontWeight.BOLD)), expand=True),
-                                ft.ElevatedButton(text="Montage-Modus", on_click=self.mounting_clicked, color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=20, text_style=ft.TextStyle(size=20, weight=ft.FontWeight.BOLD)), expand=True),
+                                ft.ElevatedButton(text="Alle öffnen",on_click=self.open_all_clicked, color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=20, text_style=ft.TextStyle(size=24, weight=ft.FontWeight.BOLD)), expand=True),
+                                ft.ElevatedButton(text="Montage-Modus", on_click=self.mounting_clicked, color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=20, text_style=ft.TextStyle(size=24, weight=ft.FontWeight.BOLD)), expand=True),
                                 ]),
                             ft.Card(ft.Container(self.service_mode, padding = 10), color=ft.Colors.WHITE, margin=0),
                             NumberPad(self.service_callback)
                         ],
-                        spacing=20
+                        spacing=15
+                    )
+        
+        self.open_comps_text = ft.Text(value="", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD))
+        self.network_text = ft.Text(value="", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD))
+        self.temp_text = ft.Text(value="", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD))
+        self.uptime_text = ft.Text(value="", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD))
+        self.error_text = ft.Text(value="", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD))
+        self.hw_msg_text = ft.Text(value="", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD))
+        self.update_info()
+        self.info = ft.Column([
+                            ft.Card(ft.Container(ft.Text(value="Info", color=self.main_color, text_align=ft.TextAlign.LEFT, size=35, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=15),color=ft.Colors.WHITE, margin=0),
+                            ft.Card(ft.Container(ft.Column([
+                                ft.Text(value=f"ID String: {self.settings['ID']}", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD)),
+                                ft.Text(value=f"Serial number: {self.settings['SN']}", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD)),
+                                ft.Text(value=f"Software version: {__version__}", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD)),
+                                ft.Text(value=f"Hardware revision: {self.settings['HW_revision']}", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD)),
+                                ft.Text(value=f"Hardware platform: {helpers.get_rpi_model()}", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD)),
+                                ft.Text(value=f"Hardware serial: {helpers.get_rpi_serial()}", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD)),
+                                ft.Text(value=f"Python: {platform.python_version()}", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD)),
+                                ft.Text(value=f"OS: {platform.platform()}", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD)),                                 
+                                ft.Text(value=f"Small compartments: {self.settings['SMALL_COMPARTMENTS']}", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD)),
+                                ft.Text(value=f"Large compartments: {self.settings['LARGE_COMPARTMENTS']}", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD)),
+                                self.open_comps_text,
+                                self.network_text,
+                                self.temp_text,
+                                self.uptime_text,
+                                self.error_text,
+                                self.hw_msg_text,
+                                ],scroll=ft.ScrollMode.AUTO),
+                            padding=10), color=ft.Colors.WHITE, margin=0, expand=True),
+                        ],
+                        spacing=20, expand=True
                     )
         
         self.booking = ft.Column(
                         controls=[
                             ft.Card(content=ft.Container(content=ft.Text(value="Buchung", color=self.main_color, text_align=ft.TextAlign.LEFT, size=35, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=15),color=ft.Colors.WHITE, margin=0),
-                            ft.Card(content=ft.Container(content=ft.Text(value="Buchen kannst du via Flink (App oder Webseite). Hier ist ein Link als QR-Code:", color=self.main_color, text_align=ft.TextAlign.LEFT, size=20, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=15, margin=0, expand=True),color=ft.Colors.WHITE, margin=0),
-                            ft.Card(ft.Container(ft.Image(src=f"qrcode.png", width=450, height=480, fit=ft.ImageFit.CONTAIN,), padding=15), color=ft.Colors.WHITE, margin=0),
+                            ft.Card(content=ft.Container(content=ft.Text(value="Buchen kannst du via Flink-App oder auf maw.flink.coop. Hier ist ein Link als QR-Code:", color=self.main_color, text_align=ft.TextAlign.LEFT, size=24, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=15, margin=0, expand=True),color=ft.Colors.WHITE, margin=0),
+                            ft.Card(ft.Container(ft.Image(src=f"qrcode.png", width=450, height=430, fit=ft.ImageFit.CONTAIN,), padding=15), color=ft.Colors.WHITE, margin=0, expand=1),
                         ],
                         spacing=20
                     )
@@ -175,21 +210,25 @@ class UI():
         self.borrowing = ft.Column(
                         controls=[
                         ft.Card(content=ft.Container(content=ft.Text(value="Ausleihe", color=self.main_color, text_align=ft.TextAlign.LEFT, size=35, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=15),color=ft.Colors.WHITE, margin=0),
-                        ft.Card(ft.Container(ft.Text(value="Bitte gib deinen vierstelligen Code ein.", size=20, color=self.main_color, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=10), color=ft.Colors.WHITE),
+                        ft.Card(ft.Container(ft.Text(value="Bitte gib deinen vierstelligen Code ein.", size=24, color=self.main_color, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=10), color=ft.Colors.WHITE),
                         ft.Card(ft.Container(self.code_display, padding=10), color=ft.Colors.WHITE), 
                         NumberPad(self.borrowing_callback)
                         ],
                         #spacing=20
                     )
-        
+                    
+        self.tag=ft.Image(src="tag.png", width=100, height=70, fit=ft.ImageFit.CONTAIN, left=50, top=170, animate_position=10000)
         self.returning = ft.Column(
                         controls=[
                             ft.Card(content=ft.Container(content=ft.Text(value="Rückgabe", color=self.main_color, text_align=ft.TextAlign.LEFT, size=35, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=15),color=ft.Colors.WHITE, margin=0),
                             ft.Card(content=ft.Row([
-                                ft.Container(content=ft.Text(value="Bitte halte den Schlüsselanhänger an das Lesegerät auf der rechten Seite des Kastens.", color=self.main_color, text_align=ft.TextAlign.LEFT, size=20, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=10, margin=10, expand=True), 
+                                ft.Container(content=ft.Text(value="Bitte halte den Schlüsselanhänger an das Lesegerät auf der rechten Seite des Kastens.", color=self.main_color, text_align=ft.TextAlign.LEFT, size=24, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=10, margin=10, expand=True), 
                                 ft.Icon(name=ft.Icons.ARROW_FORWARD, color=self.main_color, size=100)]),
                             color=ft.Colors.WHITE, margin=0),
-                            ft.Card(ft.Container(ft.Image(src=f"nfc2.png", width=430, height=390, fit=ft.ImageFit.CONTAIN,), padding=15), color=ft.Colors.WHITE, margin=0),
+                            ft.Stack([
+                                ft.Card(ft.Container(ft.Image(src="nfc.png", width=430, height=390, fit=ft.ImageFit.CONTAIN,), padding=15), color=ft.Colors.WHITE, margin=0),
+                                self.tag
+                                ]),
                         ],
                         spacing=20
                     )
@@ -197,7 +236,7 @@ class UI():
       
         self.info_bar = ft.Container(
                 content=ft.Row([
-                ft.Text(value="Status:", color=ft.Colors.WHITE, size=20),
+                ft.Text(value="Status:", color=ft.Colors.WHITE, size=24),
                 ft.Icon(name=ft.Icons.CLOUD_OFF, color=ft.Colors.WHITE),
                 ft.Icon(name=ft.Icons.WIFI_OFF, color=ft.Colors.WHITE),
                 #ft.Icon(name=ft.Icons.POWER_OFF, color=ft.Colors.WHITE),
@@ -208,11 +247,11 @@ class UI():
         
         self.page.appbar = ft.AppBar(
             leading_width=48,
-            leading=ft.IconButton(on_click=lambda _: self.page_reconfigure(self.welcome), icon=ft.Icons.ARROW_BACK,icon_color=ft.Colors.WHITE, icon_size=30, padding=ft.padding.all(12)),
-            title=ft.Text("Ziemann Engineering Schlüsselkasten", size=20, color=ft.Colors.WHITE),
+            leading=ft.IconButton(on_click=lambda _: self.page_reconfigure(self.welcome), icon=ft.Icons.ARROW_BACK,icon_color=ft.Colors.WHITE, icon_size=40),# padding=ft.padding.all(12)),
+            title=ft.Text("ZE Schlüsselkasten", size=24, color=ft.Colors.WHITE),
             #title=info_bar,
             center_title=True,
-            actions=[ft.IconButton(on_click=lambda _: self.page_reconfigure(self.help), icon=ft.Icons.HELP_OUTLINE,icon_color=ft.Colors.WHITE, icon_size=30, padding=ft.padding.all(12))],
+            actions=[ft.TextButton(on_click=lambda _: self.page_reconfigure(self.help), on_long_press=lambda _: self.page_reconfigure(self.info), icon=ft.Icons.HELP_OUTLINE,icon_color=ft.Colors.WHITE, style=ft.ButtonStyle(icon_size=40))], # padding=ft.padding.all(12)
             bgcolor=self.main_color,   
         )       
         
@@ -222,12 +261,20 @@ class UI():
         # recycle this thread to do background tasks
         self.background_tasks(self)
         
+    def animate(self):
+        self.tag.left = 250
+        self.page.update()
+        
     # switch between welcome (initial), booking, borrowing, returning and service pages
     def page_reconfigure(self, destination):
         if len(self.page.controls) > 0:
            self.page.remove_at(0)
         self.page.add(destination)
-        self.page.update()
+        
+        if destination == self.returning:
+            self.animate()
+        else:
+            self.page.update()
         
     def borrowing_callback(self, data):
         if data == "x":
@@ -247,7 +294,7 @@ class UI():
                 dlg = ft.AlertDialog(
                     modal=False,
                     title=ft.Text(title),
-                    content=ft.Text(announcement, style=ft.TextStyle(size=20)),
+                    content=ft.Text(announcement, style=ft.TextStyle(size=24)),
                     on_dismiss=None,
                     #barrier_color="#66660000"
                     )
@@ -275,8 +322,8 @@ class UI():
                 dlg_modal = ft.AlertDialog(
                     modal=True,
                     title=ft.Text("NFC-Tag programmieren"),
-                    content=ft.Text(f"Bitte den NFC-Tag für Fach {self.compartment} rechts an den Leser halten, bis der Vorgang abgeschlossen ist.", style=ft.TextStyle(size=20)),
-                    actions=[ft.TextButton("Abbrechen", on_click=lambda e: self.page.close(dlg_modal), style=ft.ButtonStyle(text_style=ft.TextStyle(size=20, weight=ft.FontWeight.BOLD)))],
+                    content=ft.Text(f"Bitte den NFC-Tag für Fach {self.compartment} rechts an den Leser halten, bis der Vorgang abgeschlossen ist.", style=ft.TextStyle(size=24)),
+                    actions=[ft.TextButton("Abbrechen", on_click=lambda e: self.page.close(dlg_modal), style=ft.ButtonStyle(text_style=ft.TextStyle(size=24, weight=ft.FontWeight.BOLD)))],
                     on_dismiss=None)
                 self.page.open(dlg_modal)
                 if self.nfc is not None:
@@ -293,7 +340,7 @@ class UI():
                 dlg_modal = ft.AlertDialog(
                     modal=True,
                     title=ft.Text("Fach zurückgesetzt"),
-                    content=ft.Text(f"Die gespeicherten NFC-Tags für Fach {self.compartment} wurden gelöscht.", style=ft.TextStyle(size=20)),
+                    content=ft.Text(f"Die gespeicherten NFC-Tags für Fach {self.compartment} wurden gelöscht.", style=ft.TextStyle(size=24)),
                     on_dismiss=None)
                 self.page.open(dlg_modal)
                 self.settings["NFC-tags"][self.compartment] = []
@@ -309,7 +356,7 @@ class UI():
             dlg = ft.AlertDialog(
                     modal=False,
                     title=ft.Text("Ungültiges Fach"),
-                    content=ft.Text(f"Fach {compartment} existiert nicht.",  style=ft.TextStyle(size=20)),
+                    content=ft.Text(f"Fach {compartment} existiert nicht.",  style=ft.TextStyle(size=24)),
                     on_dismiss=None)
             self.page.open(dlg)
             time.sleep(3)
@@ -318,7 +365,7 @@ class UI():
         dlg = ft.AlertDialog(
                     modal=False,
                     title=ft.Text("Fach öffnen"),
-                    content=ft.Text(f"Fach {compartment} wird geöffnet.",  style=ft.TextStyle(size=20)),
+                    content=ft.Text(f"Fach {compartment} wird geöffnet.",  style=ft.TextStyle(size=24)),
                     on_dismiss=None)
         self.page.open(dlg)
         hardware.compartments[compartment].set_LEDs("white")
@@ -353,9 +400,9 @@ class UI():
         dlg_modal = ft.AlertDialog(
                     modal=True,
                     title=ft.Text("Fach wurde geöffnet"),
-                    content=ft.Text(f"{announcement} {question}",  style=ft.TextStyle(size=20)),
-                    actions=[ft.TextButton("Nein", on_click=lambda e: self.close_modal(dlg_modal, destination_no), style=ft.ButtonStyle(text_style=ft.TextStyle(size=20, weight=ft.FontWeight.BOLD))), 
-                             ft.TextButton("Ja", on_click=lambda e: self.close_modal(dlg_modal, destination_yes), style=ft.ButtonStyle(text_style=ft.TextStyle(size=20, weight=ft.FontWeight.BOLD)))],
+                    content=ft.Text(f"{announcement} {question}",  style=ft.TextStyle(size=24)),
+                    actions=[ft.TextButton("Nein", on_click=lambda e: self.close_modal(dlg_modal, destination_no), style=ft.ButtonStyle(text_style=ft.TextStyle(size=24, weight=ft.FontWeight.BOLD))), 
+                             ft.TextButton("Ja", on_click=lambda e: self.close_modal(dlg_modal, destination_yes), style=ft.ButtonStyle(text_style=ft.TextStyle(size=24, weight=ft.FontWeight.BOLD)))],
                     on_dismiss=None)
         self.page.open(dlg_modal)
         # close dialog if no user reaction
@@ -381,4 +428,12 @@ class UI():
         
     def reconfigure_appbar():
         pass # TODO
+        
+    def update_info(self):
+        self.open_comps_text.value = f"Open compartments: {helpers.check_all(hardware.compartments)}"
+        self.network_text.value = f"Network: {helpers.get_ESSID()}, Signal: {helpers.get_RSSI()}"
+        self.temp_text.value = f"CPU temperature: {helpers.get_temp()} °C"
+        self.uptime_text.value = f"Uptime: {helpers.uptime()}"
+        self.error_text.value = f"Errors: {self.errors}"
+        self.hw_msg_text.value = f"Hardware messages: {helpers.get_throttled()}"
         

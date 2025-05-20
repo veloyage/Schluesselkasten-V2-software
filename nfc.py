@@ -23,8 +23,8 @@ class NFC():
         self.port = port
         
     def personalize(self):
-        # Create physical self.device which can be used to detect a card
-        self.device = PN532UARTDevice(self.port, baudrate=115200, timeout=0.1)   
+        # Create physical device which can be used to detect a card
+        device = PN532UARTDevice(self.port, baudrate=115200, timeout=0.1)   
         
         MIFARE_PICC_MASTER_KEY = self.masterkey
         MIFARE_APP_ID = self.app_id  # ZEK = 5a454b = 90, 69, 75
@@ -38,7 +38,7 @@ class NFC():
         i = 0
 
         while not uid and i < self.attempts :
-            uid = self.device.wait_for_card(timeout=1)
+            uid = device.wait_for_card(timeout=1)
             i += 1
 
         if not uid:
@@ -48,7 +48,7 @@ class NFC():
         logger.info("Card detected.")
 
         # Create DESFire object, which allows further communication with the card
-        desfire = DESFire(self.device)
+        desfire = DESFire(device)
 
         key_settings = desfire.get_key_setting()
 
@@ -140,8 +140,8 @@ class NFC():
 
 
     def check(self):
-        # Create physical self.device which can be used to detect a card
-        self.device = PN532UARTDevice(self.port, baudrate=115200, timeout=0.1)  
+        # Create physical device which can be used to detect a card
+        device = PN532UARTDevice(self.port, baudrate=115200, timeout=0.1)  
         
         MIFARE_PICC_MASTER_KEY = self.masterkey
         MIFARE_APP_ID = self.app_id  # ZEK = 5a454b = 90, 69, 75
@@ -164,7 +164,7 @@ class NFC():
         i = 0
 
         #while not uid and i < self.attempts:
-        uid = self.device.wait_for_card(timeout=1)
+        uid = device.wait_for_card(timeout=1)
             #i += 1
 
         if not uid:
@@ -173,7 +173,7 @@ class NFC():
 
         try:
             # Create DESFire object, which allows further communication with the card
-            desfire = DESFire(self.device)
+            desfire = DESFire(device)
 
             #key_settings = desfire.get_key_setting()
             PICC_key = DESFireKey(aes_key_settings, MIFARE_PICC_MASTER_KEY)
@@ -202,8 +202,8 @@ class NFC():
             return None
 
     def format(self):
-        # Create physical self.device which can be used to detect a card
-        self.device = PN532UARTDevice(self.port, baudrate=115200, timeout=0.1)  
+        # Create physical device which can be used to detect a card
+        device = PN532UARTDevice(self.port, baudrate=115200, timeout=0.1)  
         
         MIFARE_PICC_MASTER_KEY = self.masterkey
         
@@ -219,7 +219,7 @@ class NFC():
 
 
         while not uid and i < self.attempts:
-            uid = self.device.wait_for_card(timeout=1)
+            uid = device.wait_for_card(timeout=1)
             i += 1
 
         if not uid:
@@ -229,7 +229,7 @@ class NFC():
         #logger.info(f"Card detected: {uid}")
 
         # Create DESFire object, which allows further communication with the card
-        desfire = DESFire(self.device)
+        desfire = DESFire(device)
 
         # check if the card has the default key or a new one
         key_settings = desfire.get_key_setting()

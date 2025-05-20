@@ -4,26 +4,17 @@ import logging
 import platform    # For getting the operating system name
 import subprocess  # For executing a shell command
 
+import ping3
+
 from hardware_V2 import compartments
-#from hardware_mock import compartments
-#from main import UI
+
 import helpers
 
 logger = logging.getLogger(__name__)
 
 
 def ping():
-    """
-    Returns True if host (str) responds to a ping request.
-    """
-
-    # Option for the number of packets as a function of
-    param = '-n' if platform.system().lower()=='windows' else '-c'
-
-    # Building the command. Ex: "ping -c 1 google.com"
-    command = ['ping', param, '1', "google.com"]
-
-    return subprocess.call(command) == 0
+    return ping3.ping("google.com", unit='ms')
 
 #
 # MQTT

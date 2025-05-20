@@ -59,31 +59,35 @@ def background_tasks(ui):
             status_code = flink.put_status(time.monotonic(), SN, __version__, small_compartments, large_compartments)
             if status_code != 200:
                 logger.warning(f"Response from Flink: {status_code}.")
-                #ui.no_flink_grid.hidden = False
             else:
-                #ui.no_flink_grid.hidden = True
                 pass
 
             # check battery status
             if hardware.battery_monitor is not None:
                 if hardware.battery_monitor.cell_voltage < 3.5:  # log if low battery
                     logger.warning(f"Battery low: {battery_monitor.cell_voltage:.2f}V, {battery_monitor.cell_percent:.1f} %")
-                    #ui.low_battery_grid.hidden = False
                 else:
-                    #ui.low_battery_grid.hidden = True
                     pass
-                    
+        
+        if ui.info in ui.page:
+            ui.update_info()
+            ui.page.update()
+        
         # check if NFC tag is present, timeout=1s                       
         if (ui.returning in ui.page or ui.welcome in ui.page) and nfc is not None:
-            uid = nfc.check()               
-            if uid is not None:
-                logging.info(f"NFC tag with UID {uid} was scanned.")                
-                for comp, comp_tags in settings["NFC-tags"].items():
-                    if uid in comp_tags:
-                        if comp == "service":
-                            ui.page_reconfigure(ui.service)
-                        else:
-                            ui.open_compartment(comp, "return")
+            try:
+                uid = nfc.check()
+                if uid is not None:
+                    logging.info(f"NFC tag with UID {uid} was scanned.")                
+                    for comp, comp_tags in settings["NFC-tags"].items():
+                        if uid in comp_tags:
+                            if comp == "service":
+                                ui.page_reconfigure(ui.service)
+                            else:
+                                ui.open_compartment(comp, "return")                
+            except Exception as e:
+                logger.warning(f"Error checking NFC tag: {e}")
+                ui.errors["NFC"] = f"Error checking NFC tag: {e}"
         else:
             time.sleep(1)
         counter += 1
@@ -104,12 +108,13 @@ large_compartments = settings["LARGE_COMPARTMENTS"]
 aio_username = settings["ADAFRUIT_IO_USERNAME"]
 aio_key = settings["ADAFRUIT_IO_KEY"]
 aio_feed_name = settings["ADAFRUIT_IO_FEED"]
-
    
 #
 # LOGGING SETUP
 #
-  
+ 
+errors = {}
+ 
 # open local logfile
 logger = logging.getLogger(__name__)
 
@@ -128,6 +133,8 @@ mqtt = networking.init_mqtt(settings["ADAFRUIT_IO_USERNAME"], settings["ADAFRUIT
 if mqtt is not None:
     logger.addHandler(networking.AIOLogHandler(logging.INFO, mqtt))
     logger.info("Logging to MQTT broker started.")
+else:
+    errors["MQTT"] = "MQTT connection failed."
 
 
 #
@@ -140,10 +147,12 @@ logger.info(f"Hardware revision: {HW_revision}, Platform: {hardware.platform}")
 #logger.info(f"CPU ID: {hex_format(microcontroller.cpu.uid)}, temperature: {microcontroller.cpu.temperature:.2}°C")
 #logger.info(f"Reset reason: {str(microcontroller.cpu.reset_reason).split('.')[2]}, run reason: {str(supervisor.runtime.run_reason).split('.')[2]}")
 
-if networking.ping() is True:
-    logger.info(f"Ping to google successful.")
+ping = networking.ping()
+if isinstance(ping, float) and ping < 1000:
+    logger.info(f"Ping to google: {ping}")
 else:
-    logger.warning("Ping to google failed.")
+    logger.warning("Ping to google failed: {ping}")
+    errors["ping"] = "Ping to google failed: {ping}"
 
 flink = flink.Flink(ID, settings["FLINK_URL"], settings["FLINK_API_KEY"])
 status_code = flink.put_status(time.monotonic(), SN, __version__, small_compartments, large_compartments)
@@ -151,7 +160,7 @@ if status_code == 200:
     logger.info(f"Response from Flink: {status_code}.")
 else:
     logger.warning(f"Response from Flink: {status_code}.")
-    #ui.no_flink_grid.hidden = False
+    errors["flink"] = f"Connection to flink failed: {status_code}."
 
 #
 # HARDWARE SETUP
@@ -163,7 +172,7 @@ if hardware.battery_monitor is not None:
 logger.info(f"{len(hardware.port_expanders)} compartment PCBs / rows detected.")
 if len(hardware.port_expanders)*8 < small_compartments:
     logger.error("Insufficient compartment PCBs detected.")
-    #ui.maintainance_grid.hidden = False
+    errors["insufficient_compartments"] = "Insufficient compartment PCBs detected."
 
 # initialize the compartment PCBs / port expanders
 hardware.init_port_expanders(large_compartments)
@@ -173,6 +182,7 @@ try:
 except Exception as e:
     nfc = None
     logger.error(f"Error setting up NFC: {e}")
+    errors["NFC"] = f"Error setting up NFC: {e}"
     
 
 open_comps = helpers.check_all(hardware.compartments)
@@ -183,4 +193,4 @@ if len(open_comps) != 0:
 # Start GUI
 #
 
-ft.app(target=ui.UI(settings, toml, flink, nfc, background_tasks))
+ft.app(target=ui.UI(settings, toml, flink, nfc, errors, background_tasks))
