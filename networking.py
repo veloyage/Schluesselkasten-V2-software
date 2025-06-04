@@ -1,14 +1,11 @@
 from Adafruit_IO import MQTTClient
 import logging
 
-import platform    # For getting the operating system name
 import subprocess  # For executing a shell command
 
 import ping3
 
-from hardware_V2 import compartments
-
-import helpers
+import hardware_V2 as hardware
 
 logger = logging.getLogger(__name__)
 
@@ -64,13 +61,13 @@ def process_mqtt_command(payload):
     if command == "status" and len(payload) == 2:
         comp = payload[1]
         if comp == "all":
-            logger.info(f"Open compartments: {helpers.check_all(compartments)}")
+            logger.info(f"Open compartments: {hardware.check_all()}")
         elif int(comp) > 0 and int(comp) <= len(compartments):
             logger.info(f"Compartment {comp} status: door open: {compartments[comp].get_inputs()}, door status saved: {compartments[comp].door_status}, content status: {compartments[comp].content_status}.")
     elif command == "open" and len(payload) == 2:
         comp = payload[1]
         if comp == "all":
-            helpers.open_all(compartments)
+            hardware.open_all()
         elif int(comp) > 0 and int(comp) <= len(compartments):
             compartments[comp].open()
         logger.info(f"Compartment open sent from MQTT broker: {comp}")

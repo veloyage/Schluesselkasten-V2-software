@@ -5,13 +5,17 @@ import subprocess
 import logging
 import platform
 
-import helpers
 import hardware_V2 as hardware
 
+logging.getLogger("flet").setLevel(logging.WARNING)
+logging.getLogger("flet_web").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # infos
-__version__ = "2.0.0-alpha3"
+__version__ = "2.0.0-alpha4"
+
+def start_GUI(settings, toml, flink, nfc, errors, background_tasks):
+    ft.app(target=UI(settings, toml, flink, nfc, errors, background_tasks))
 
 class DigitButton(ft.ElevatedButton):
     def __init__(self, button_clicked, text = None):
@@ -151,7 +155,7 @@ class UI():
                         controls=[
                             ft.Card(content=ft.Container(content=ft.Text(value="Service-Menü", color=self.main_color, text_align=ft.TextAlign.LEFT, size=35, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=15),color=ft.Colors.WHITE, margin=0),
                             ft.Row([
-                                ft.ElevatedButton(text="App schliessen",on_click=lambda _: self.page.window.close(), color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=20, text_style=ft.TextStyle(size=24, weight=ft.FontWeight.BOLD)), expand=True),
+                                ft.ElevatedButton(text="App schliessen",on_click=lambda _: subprocess.call("./stop.sh"), color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=20, text_style=ft.TextStyle(size=24, weight=ft.FontWeight.BOLD)), expand=True),
                                 ft.ElevatedButton(text="App neustarten", on_click=lambda _: subprocess.call("./start.sh"), color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=20, text_style=ft.TextStyle(size=24, weight=ft.FontWeight.BOLD)), expand=True),
                                 ]),
                             ft.Row([
@@ -169,7 +173,6 @@ class UI():
         self.temp_text = ft.Text(value="", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD))
         self.uptime_text = ft.Text(value="", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD))
         self.error_text = ft.Text(value="", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD))
-        self.hw_msg_text = ft.Text(value="", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD))
         self.update_info()
         self.info = ft.Column([
                             ft.Card(ft.Container(ft.Text(value="Info", color=self.main_color, text_align=ft.TextAlign.LEFT, size=35, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=15),color=ft.Colors.WHITE, margin=0),
@@ -178,8 +181,8 @@ class UI():
                                 ft.Text(value=f"Serial number: {self.settings['SN']}", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD)),
                                 ft.Text(value=f"Software version: {__version__}", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD)),
                                 ft.Text(value=f"Hardware revision: {self.settings['HW_revision']}", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD)),
-                                ft.Text(value=f"Hardware platform: {helpers.get_rpi_model()}", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD)),
-                                ft.Text(value=f"Hardware serial: {helpers.get_rpi_serial()}", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD)),
+                                ft.Text(value=f"Hardware platform: {hardware.get_cpu_model()}", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD)),
+                                ft.Text(value=f"Hardware serial: {hardware.get_cpu_serial()}", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD)),
                                 ft.Text(value=f"Python: {platform.python_version()}", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD)),
                                 ft.Text(value=f"OS: {platform.platform()}", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD)),                                 
                                 ft.Text(value=f"Small compartments: {self.settings['SMALL_COMPARTMENTS']}", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD)),
@@ -189,7 +192,6 @@ class UI():
                                 self.temp_text,
                                 self.uptime_text,
                                 self.error_text,
-                                self.hw_msg_text,
                                 ],scroll=ft.ScrollMode.AUTO),
                             padding=10), color=ft.Colors.WHITE, margin=0, expand=True),
                         ],
@@ -206,7 +208,7 @@ class UI():
                     )
         
         self.code  = ""  
-        self.code_display = ft.Text(value=self.code, size=180, color=self.main_color, width = 460, max_lines=1, style=ft.TextStyle(height=0.9))
+        self.code_display = ft.Text(value=self.code, size=180, color=self.main_color, width=460, max_lines=1, style=ft.TextStyle(height=0.9))
         self.borrowing = ft.Column(
                         controls=[
                         ft.Card(content=ft.Container(content=ft.Text(value="Ausleihe", color=self.main_color, text_align=ft.TextAlign.LEFT, size=35, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=15),color=ft.Colors.WHITE, margin=0),
@@ -217,7 +219,7 @@ class UI():
                         #spacing=20
                     )
                     
-        self.tag=ft.Image(src="tag.png", width=100, height=70, fit=ft.ImageFit.CONTAIN, left=50, top=170, animate_position=10000)
+        self.tag=ft.Image(src="tag.png", width=100, height=70, fit=ft.ImageFit.CONTAIN, left=50, top=170, animate_position=ft.Animation(duration=2000, curve="ease"))
         self.returning = ft.Column(
                         controls=[
                             ft.Card(content=ft.Container(content=ft.Text(value="Rückgabe", color=self.main_color, text_align=ft.TextAlign.LEFT, size=35, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=15),color=ft.Colors.WHITE, margin=0),
@@ -233,22 +235,13 @@ class UI():
                         spacing=20
                     )
         
-      
-        self.info_bar = ft.Container(
-                content=ft.Row([
-                ft.Text(value="Status:", color=ft.Colors.WHITE, size=24),
-                ft.Icon(name=ft.Icons.CLOUD_OFF, color=ft.Colors.WHITE),
-                ft.Icon(name=ft.Icons.WIFI_OFF, color=ft.Colors.WHITE),
-                #ft.Icon(name=ft.Icons.POWER_OFF, color=ft.Colors.WHITE),
-                #ft.Icon(name=ft.Icons.BATTERY_0_BAR, color=ft.Colors.WHITE),
-                #ft.Icon(name=ft.Icons.ENGINEERING, color=ft.Colors.WHITE)
-            ],
-            alignment=ft.MainAxisAlignment.CENTER))
-        
+        self.info_bar_row = ft.Row(controls=[ft.Text(value="Status:", color=ft.Colors.WHITE, size=24)], alignment=ft.MainAxisAlignment.CENTER)
+        self.info_bar = ft.Container(content=self.info_bar_row)
+        self.titletext = ft.Text("ZE Schlüsselkasten", size=24, color=ft.Colors.WHITE)
         self.page.appbar = ft.AppBar(
             leading_width=48,
             leading=ft.IconButton(on_click=lambda _: self.page_reconfigure(self.welcome), icon=ft.Icons.ARROW_BACK,icon_color=ft.Colors.WHITE, icon_size=40),# padding=ft.padding.all(12)),
-            title=ft.Text("ZE Schlüsselkasten", size=24, color=ft.Colors.WHITE),
+            title=self.titletext,
             #title=info_bar,
             center_title=True,
             actions=[ft.TextButton(on_click=lambda _: self.page_reconfigure(self.help), on_long_press=lambda _: self.page_reconfigure(self.info), icon=ft.Icons.HELP_OUTLINE,icon_color=ft.Colors.WHITE, style=ft.ButtonStyle(icon_size=40))], # padding=ft.padding.all(12)
@@ -261,7 +254,10 @@ class UI():
         # recycle this thread to do background tasks
         self.background_tasks(self)
         
-    def animate(self):
+    def run_animation(self):
+        #self.tag.animate_position=ft.Animation(duration=2000, curve="ease")
+        self.tag.left = 50
+        time.sleep(0.5)
         self.tag.left = 250
         self.page.update()
         
@@ -270,11 +266,10 @@ class UI():
         if len(self.page.controls) > 0:
            self.page.remove_at(0)
         self.page.add(destination)
+        self.page.update()
         
         if destination == self.returning:
-            self.animate()
-        else:
-            self.page.update()
+            self.run_animation()
         
     def borrowing_callback(self, data):
         if data == "x":
@@ -317,8 +312,10 @@ class UI():
                 success = self.open_compartment(self.compartment, "service")
                 if success:
                     logger.info(f"Compartment {self.compartment} was opened from service mode, content status: {hardware.compartments[self.compartment].content_status}, door status: {hardware.compartments[self.compartment].door_status}.")
-            elif self.service_mode.value == "program":
+            elif self.service_mode.value == "program": 
                 # nfc_personalize, write dict, save to toml
+                if self.compartment == "0000":
+                    self.compartment = "service"
                 dlg_modal = ft.AlertDialog(
                     modal=True,
                     title=ft.Text("NFC-Tag programmieren"),
@@ -326,15 +323,23 @@ class UI():
                     actions=[ft.TextButton("Abbrechen", on_click=lambda e: self.page.close(dlg_modal), style=ft.ButtonStyle(text_style=ft.TextStyle(size=24, weight=ft.FontWeight.BOLD)))],
                     on_dismiss=None)
                 self.page.open(dlg_modal)
-                if self.nfc is not None:
-                    uid = self.nfc.personalize()
-                self.page.close(dlg_modal)
-                if uid is not None:
-                    self.settings["NFC-tags"][self.compartment].append(uid)
-                    logger.info(f"NFC tag with UID {uid} assigned to compartment {self.compartment}.")
-                    self.toml.write(self.settings)
+                if self.compartment in self.settings["NFC-tags"]:
+                    if self.nfc is not None:
+                        uid = self.nfc.personalize()
+                    if uid is not None:
+                        self.settings["NFC-tags"][self.compartment].append(uid)
+                        dlg_modal.content=ft.Text(f"NFC-Tag wird Fach {self.compartment} zugewiesen.", style=ft.TextStyle(size=24))
+                        self.toml.write(self.settings)
+                        logger.info(f"NFC tag with UID {uid} assigned to compartment {self.compartment}.")
+                    else:
+                        dlg_modal.content=ft.Text(f"Kein NFC-Tag gefunden.", style=ft.TextStyle(size=24))
+                        logger.warning(f"Tag assignment failed, no NFC tag found.")
                 else:
-                    logger.warning(f"Tag assignment failed, no NFC tag found.")
+                    dlg_modal.content=ft.Text(f"Fach {self.compartment} ist nicht gültig.", style=ft.TextStyle(size=24))
+                    logger.info(f"Compartment {self.compartment} is not valid, NFC-tag not saved.")
+                self.page.open(dlg_modal)
+                time.sleep(2)
+                self.page.close(dlg_modal)
             elif self.service_mode.value == "reset":
                 # write dict, save to toml
                 dlg_modal = ft.AlertDialog(
@@ -346,6 +351,8 @@ class UI():
                 self.settings["NFC-tags"][self.compartment] = []
                 self.toml.write(self.settings)
                 logger.info(f"NFC assignment reset for compartment {self.compartment}.")
+                time.sleep(2)
+                self.page.close(dlg_modal)
             self.compartment = ""
             
         else:
@@ -420,20 +427,34 @@ class UI():
         
     def open_all_clicked(self, e):
         logger.info(f"All compartments opened from service mode.")
-        helpers.open_all(hardware.compartments)
+        hardware.open_all()
         
     def mounting_clicked(self, e):
         logger.info(f"Mounting compartments opened from service mode.")
-        helpers.open_mounting(hardware.compartments)
+        hardware.open_mounting()
         
-    def reconfigure_appbar():
-        pass # TODO
+    def reconfigure_appbar(self):
+        if len(self.errors) > 0 and self.page.appbar.title == self.titletext:
+            self.page.appbar.title = self.info_bar
+            self.info_bar_row.controls = self.info_bar_row.controls[0:1] # clear symbols
+            if "flink" in self.errors:
+                self.info_bar_row.controls.append(ft.Icon(name=ft.Icons.CLOUD_OFF, color=ft.Colors.WHITE)) 
+            if "ping" in self.errors:
+                self.info_bar_row.controls.append(ft.Icon(name=ft.Icons.WIFI_OFF, color=ft.Colors.WHITE))
+            if "power" in self.errors:
+                self.info_bar_row.controls.append(ft.Icon(name=ft.Icons.POWER_OFF, color=ft.Colors.WHITE))
+            if "battery" in self.errors:
+                self.info_bar_row.controls.append(ft.Icon(name=ft.Icons.BATTERY_0_BAR, color=ft.Colors.WHITE))
+            if [i for i in {"NFC", "compartments", "lux", "MQTT"} if i in self.errors]:
+                self.info_bar_row.controls.append(ft.Icon(name=ft.Icons.ENGINEERING, color=ft.Colors.WHITE))
+        else:
+            self.page.appbar.title = self.titletext
+        self.page.update()
         
     def update_info(self):
-        self.open_comps_text.value = f"Open compartments: {helpers.check_all(hardware.compartments)}"
-        self.network_text.value = f"Network: {helpers.get_ESSID()}, Signal: {helpers.get_RSSI()}"
-        self.temp_text.value = f"CPU temperature: {helpers.get_temp()} °C"
-        self.uptime_text.value = f"Uptime: {helpers.uptime()}"
+        self.open_comps_text.value = f"Open compartments: {hardware.check_all()}"
+        self.network_text.value = f"Network: {hardware.get_ESSID()}, Signal: {hardware.get_RSSI()}"
+        self.temp_text.value = f"CPU temperature: {hardware.get_temp()} °C"
+        self.uptime_text.value = f"Uptime: {hardware.uptime()}"
         self.error_text.value = f"Errors: {self.errors}"
-        self.hw_msg_text.value = f"Hardware messages: {helpers.get_throttled()}"
         

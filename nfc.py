@@ -24,7 +24,7 @@ class NFC():
         
     def personalize(self):
         # Create physical device which can be used to detect a card
-        device = PN532UARTDevice(self.port, baudrate=115200, timeout=0.1)   
+        device = PN532UARTDevice(self.port, baudrate=115200, timeout=0.2, exclusive=True)   
         
         MIFARE_PICC_MASTER_KEY = self.masterkey
         MIFARE_APP_ID = self.app_id  # ZEK = 5a454b = 90, 69, 75
@@ -104,8 +104,6 @@ class NFC():
 
         # Verify application creation
         applications = desfire.get_application_ids()
-        assert len(applications) == 1
-        assert applications[0] == get_list(MIFARE_APP_ID)
 
         # Select application
         desfire.select_application(MIFARE_APP_ID)
@@ -141,7 +139,7 @@ class NFC():
 
     def check(self):
         # Create physical device which can be used to detect a card
-        device = PN532UARTDevice(self.port, baudrate=115200, timeout=0.1)  
+        device = PN532UARTDevice(self.port, baudrate=115200, timeout=0.2)  
         
         MIFARE_PICC_MASTER_KEY = self.masterkey
         MIFARE_APP_ID = self.app_id  # ZEK = 5a454b = 90, 69, 75
@@ -164,7 +162,7 @@ class NFC():
         i = 0
 
         #while not uid and i < self.attempts:
-        uid = device.wait_for_card(timeout=1)
+        uid = device.wait_for_card(timeout=0.5)
             #i += 1
 
         if not uid:
@@ -203,7 +201,7 @@ class NFC():
 
     def format(self):
         # Create physical device which can be used to detect a card
-        device = PN532UARTDevice(self.port, baudrate=115200, timeout=0.1)  
+        device = PN532UARTDevice(self.port, baudrate=115200, timeout=0.2)  
         
         MIFARE_PICC_MASTER_KEY = self.masterkey
         
