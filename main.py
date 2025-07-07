@@ -13,53 +13,57 @@ from nfc import NFC
 # TODO: GUi watchdog: if no interaction for time x, go back to welcome page
 
 # version string
-__version__ = "2.0.0-alpha4"
+__version__ = "2.0.0-beta1"
 
 #
 # functions
 #
 
 
-# background tasks function, an update function (every second) and a keepalive broadcast (every 5 min)
+# background tasks function
 def background_tasks(ui):
     # last time tasks were run
-    last_1s = 0
-    last_5s = 0 
+    last_1s = 0 # fastest task, 1 or 2 times per second
+    last_5s = 0
     last_30s = 0
-    last_5min = 0
+    last_5min = 0 # slowest task, roughly every 5 minutes
     
     while True:
-        while last_1s + 1 > time.time():
+        while last_1s + 0.5 > time.time():
             time.sleep(0.1)
         last_1s = time.time()
         
         ### runs roughly every 5 minutes ###
         # send keepalive message
         if last_5min + 300 < time.time():  
-            last_5min = time.time()
             status_code = flink.put_status(time.monotonic(), SN, __version__, small_compartments, large_compartments)
             if status_code == 200:
-                logger.info(f"Response from Flink: {status_code}.")
+                if last_5min == 0 or "flink" in errors:
+                    logger.info(f"Response from Flink: {status_code}.")
                 if "flink" in errors:
                     del errors["flink"]
             else:
                 logger.warning(f"Response from Flink: {status_code}.")
                 errors["flink"] = f"Connection to flink failed: {status_code}."
-        
+            last_5min = time.time()
+            
+            
         ### runs roughly every 30 s ###
         if time.time() > last_30s + 30:
-            last_30s = time.time()
             # check for raspberry pi hardware messages
             sys_messages = hardware.get_sys_messages()
             if sys_messages:
-                errors["rpi"] = sys_messages
+                if "rpi" not in errors or errors["rpi"] != sys_messages:
+                    errors["rpi"] = sys_messages
+                    logger.warning(f"System messages: {sys_messages}.")
             elif "rpi" in errors:
                 del errors["rpi"]
                 
             # check network connection with ping
             ping = networking.ping()
-            if isinstance(ping, float) and ping < 1000:
-                logger.info(f"Ping to google: {ping:.1f} ms.")
+            if isinstance(ping, float) and ping < 1000:        
+                if "ping" in errors or last_30s == 0:
+                    logger.info(f"Ping to google: {ping:.1f} ms.")
                 if "ping" in errors:
                     del errors["ping"]
             else:
@@ -69,17 +73,17 @@ def background_tasks(ui):
             # check battery status
             if hardware.battery_monitor is not None:
                 if hardware.battery_monitor.cell_voltage < 3.5:  # log if low battery
-                    logger.warning(f"Battery low: {battery_monitor.cell_voltage:.2f}V, {battery_monitor.cell_percent:.1f} %")
-                    ui.errors["battery"] = f"Battery low: {battery_monitor.cell_voltage:.2f}V, {battery_monitor.cell_percent:.1f} %"
+                    logger.warning(f"Battery low: {hardware.battery_monitor.cell_voltage:.2f}V, {hardware.battery_monitor.cell_percent:.1f} %")
+                    ui.errors["battery"] = f"Battery low: {hardware.battery_monitor.cell_voltage:.2f}V, {hardware.battery_monitor.cell_percent:.1f} %"
                 elif "battery" in errors:
                     del errors["battery"]
-        
+            last_30s = time.time()
         
         ### runs roughly every 5 s ### 
         # info bar update (if errors)
         if time.time() > last_5s + 5:
-            last_5s = time.time()
             ui.reconfigure_appbar()
+            last_5s = time.time()
         
         ### runs roughly every second ###
         # backlight control
@@ -169,7 +173,7 @@ class DuplicateFilter(logging.Filter):
 errors = {}
  
 # open local logfile
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
 logger.addFilter(DuplicateFilter())  # add the filter to it
 
 logging.basicConfig(filename='schlüsselkasten.log',

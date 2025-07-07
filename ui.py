@@ -11,8 +11,7 @@ logging.getLogger("flet").setLevel(logging.WARNING)
 logging.getLogger("flet_web").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
-# infos
-__version__ = "2.0.0-alpha4"
+__version__ = "2.0.0-beta1"
 
 def start_GUI(settings, toml, flink, nfc, errors, background_tasks):
     ft.app(target=UI(settings, toml, flink, nfc, errors, background_tasks))
@@ -120,7 +119,7 @@ class UI():
         self.help = ft.Column(
                         controls=[
                             ft.Card(content=ft.Container(content=ft.Text(value="Kurzanleitung", color=self.main_color, text_align=ft.TextAlign.LEFT, size=35, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=10),color=ft.Colors.WHITE, margin=0),
-                            ft.Card(content=ft.Container(content=ft.Text(value="An diesem Schlüsselkasten kannst du Schlüssel und andere Gegenstände ausleihen. So gehts:", color=self.main_color, text_align=ft.TextAlign.LEFT, size=19, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=10, margin=0, expand=True),color=ft.Colors.WHITE, margin=0),
+                            ft.Card(content=ft.Container(content=ft.Text(value="An diesem Schlüsselkasten kannst du Schlüssel und andere Gegenstände ausleihen. So geht's:", color=self.main_color, text_align=ft.TextAlign.LEFT, size=19, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=10, margin=0, expand=True),color=ft.Colors.WHITE, margin=0),
                             ft.Card(content=ft.Row([
                                 ft.Container(ft.Icon(name=ft.Icons.EVENT, color=self.main_color, size=45), padding=10),
                                 ft.Container(content=ft.Text(value="Zuerst musst du über Flink buchen. Wenn du noch keinen Zugang zu Flink hast, wende dich bitte zu den Öffnungszeiten an die Rezeption.", color=self.main_color, text_align=ft.TextAlign.LEFT, size=19, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=10, margin=0, expand=True)
@@ -257,6 +256,7 @@ class UI():
     def run_animation(self):
         #self.tag.animate_position=ft.Animation(duration=2000, curve="ease")
         self.tag.left = 50
+        self.page.update()
         time.sleep(0.5)
         self.tag.left = 250
         self.page.update()
@@ -445,7 +445,7 @@ class UI():
                 self.info_bar_row.controls.append(ft.Icon(name=ft.Icons.POWER_OFF, color=ft.Colors.WHITE))
             if "battery" in self.errors:
                 self.info_bar_row.controls.append(ft.Icon(name=ft.Icons.BATTERY_0_BAR, color=ft.Colors.WHITE))
-            if [i for i in {"NFC", "compartments", "lux", "MQTT"} if i in self.errors]:
+            if [i for i in {"NFC", "compartments", "lux", "MQTT", "rpi"} if i in self.errors]:
                 self.info_bar_row.controls.append(ft.Icon(name=ft.Icons.ENGINEERING, color=ft.Colors.WHITE))
         else:
             self.page.appbar.title = self.titletext

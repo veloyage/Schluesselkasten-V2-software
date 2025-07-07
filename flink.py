@@ -2,6 +2,8 @@ import time
 import logging
 import requests
 
+__version__ = "2.0.0-beta1"
+
 flink_timeout = 5
 logger = logging.getLogger(__name__)
 
@@ -104,7 +106,7 @@ class FlinkLogHandler(logging.Handler):
         
     def emit(self, record):
         try:
-            response = requests.post(
+            requests.post(
                 f"{self.flink_URL}/{self.ID}/error_log",
                 headers={"Authorization": self.flink_API_key},
                 json={
@@ -115,5 +117,5 @@ class FlinkLogHandler(logging.Handler):
                 },
                 timeout=flink_timeout,
             )
-        except Exception:  # ignore, otherwise we will get another error while logging
-            pass
+        except Exception as e:  # logging would trigger further exceptions
+            print(f"Error when logging to flink: {e}")

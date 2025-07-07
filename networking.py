@@ -1,11 +1,13 @@
 from Adafruit_IO import MQTTClient
 import logging
+import sys
 
 import subprocess  # For executing a shell command
-
 import ping3
 
 import hardware_V2 as hardware
+
+__version__ = "2.0.0-beta1"
 
 logger = logging.getLogger(__name__)
 
@@ -62,17 +64,20 @@ def process_mqtt_command(payload):
         comp = payload[1]
         if comp == "all":
             logger.info(f"Open compartments: {hardware.check_all()}")
-        elif int(comp) > 0 and int(comp) <= len(compartments):
-            logger.info(f"Compartment {comp} status: door open: {compartments[comp].get_inputs()}, door status saved: {compartments[comp].door_status}, content status: {compartments[comp].content_status}.")
+        elif int(comp) > 0 and int(comp) <= len(hardware.compartments):
+            logger.info(f"Compartment {comp} status: door open: {hardware.compartments[comp].get_inputs()}, door status saved: {hardware.compartments[comp].door_status}, content status: {hardware.compartments[comp].content_status}.")
     elif command == "open" and len(payload) == 2:
         comp = payload[1]
         if comp == "all":
             hardware.open_all()
-        elif int(comp) > 0 and int(comp) <= len(compartments):
-            compartments[comp].open()
+        elif int(comp) > 0 and int(comp) <= len(hardware.compartments):
+            hardware.compartments[comp].open()
         logger.info(f"Compartment open sent from MQTT broker: {comp}")
-    elif command == "reset" and len(payload) == 1:
-       subprocess.call("./start.sh")
+    elif command == "restart" and len(payload) == 2:
+        if payload[1] == "device":
+            subprocess.run("sudo reboot now", shell=True)
+        if payload[1] == "software":
+            subprocess.run("./start.sh")
     #elif command == "service" and len(payload) == 1:    
        #UI.page_reconfigure(UI.service)
     #elif command == "tamper_alarm" and len(payload) == 2:

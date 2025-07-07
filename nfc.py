@@ -9,7 +9,7 @@ from desfire import DESFire, DESFireKey, diversify_key, get_list, to_hex_string,
 from desfire.enums import DESFireCommunicationMode, DESFireFileType, DESFireKeySettings, DESFireKeyType
 from desfire.schemas import FilePermissions, FileSettings, KeySettings
 
-
+__version__ = "2.0.0-beta1"
 
 logging.getLogger("desfire").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
@@ -21,10 +21,11 @@ class NFC():
         self.sys_id = settings["sys_id"]
         self.attempts = 20
         self.port = port
+
         
     def personalize(self):
         # Create physical device which can be used to detect a card
-        device = PN532UARTDevice(self.port, baudrate=115200, timeout=0.2, exclusive=True)   
+        device = PN532UARTDevice(self.port, baudrate=115200, timeout=0.2)   
         
         MIFARE_PICC_MASTER_KEY = self.masterkey
         MIFARE_APP_ID = self.app_id  # ZEK = 5a454b = 90, 69, 75
@@ -139,12 +140,10 @@ class NFC():
 
     def check(self):
         # Create physical device which can be used to detect a card
-        device = PN532UARTDevice(self.port, baudrate=115200, timeout=0.2)  
-        
+        device = PN532UARTDevice(self.port, baudrate=115200, timeout=0.2)
+            
         MIFARE_PICC_MASTER_KEY = self.masterkey
         MIFARE_APP_ID = self.app_id  # ZEK = 5a454b = 90, 69, 75
-        MIFARE_ACL_READ_BASE_KEY_ID = 0x0
-        MIFARE_ACL_WRITE_BASE_KEY_ID = 0x0
         MIFARE_SYS_ID = self.sys_id  # 3 bytes, can essentially be anything
         MIFARE_ENCRYPTED_FILE_ID = 0x1
 
@@ -159,7 +158,6 @@ class NFC():
 
         # Wait for a card
         uid = None
-        i = 0
 
         #while not uid and i < self.attempts:
         uid = device.wait_for_card(timeout=0.5)
@@ -243,7 +241,7 @@ class NFC():
                     desfire.change_key(0x00, PICC_key, new_PICC_key, 0x1)
                     # reauth
                     desfire.authenticate(0x0, new_PICC_key)
-                except:
+                except Exception:
                     pass
         else:   # if not, it's probably a fresh card with the default DES key
             logger.debug("DES key auth")

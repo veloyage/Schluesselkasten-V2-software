@@ -3,7 +3,6 @@
 #
 
 import board
-import pwmio
 import digitalio
 from adafruit_extended_bus import ExtendedI2C as I2C
 
@@ -12,7 +11,6 @@ import adafruit_lis3dh # accelerometer
 import adafruit_veml7700 # light sensor
 import adafruit_drv2605 # haptic driver
 
-import platform    # For getting the operating system name
 import subprocess  # For executing a shell command
 import logging
 
@@ -25,7 +23,7 @@ from rpi_hardware_pwm import HardwarePWM
 logger = logging.getLogger(__name__)
 
 # infos
-__version__ = "2.0.0-alpha4"
+__version__ = "2.0.0-beta1"
 
 nfc_serial = "/dev/ttyAMA3"
 
@@ -106,7 +104,7 @@ except Exception as e:
 try: 
     # TODO: add support for the BQ34210
     battery_monitor = None
-except Exception:
+except Exception as e:
     battery_monitor = None
     logger.error(f"Error setting up battery monitor: {e}")
 
@@ -116,7 +114,7 @@ port_expanders = []
 for addr in range(0x20, 0x28):
     try:
         port_expanders.append(MCP23017(i2c_ext1, address=addr))
-    except: # ValueError if device does not exist, ignore
+    except ValueError: # ValueError if device does not exist, ignore
         pass
 # second bus/connector      
 #for addr in range(0x20, 0x28):
@@ -213,14 +211,14 @@ def get_ESSID():
     try:
         result = subprocess.run("iw dev wlan0 link | grep SSID", capture_output=True, text=True, shell=True)
         return result.stdout.strip()[6:]
-    except:
+    except Exception:
         return None
     
 def get_RSSI():
     try:
         result = subprocess.run("iw dev wlan0 link | grep signal", capture_output=True, text=True, shell=True)
         return result.stdout.strip()[8:]
-    except:
+    except Exception:
         return None
     
 def get_sys_messages():
@@ -247,19 +245,19 @@ def get_sys_messages():
                 messages[bit] = message
         
         return messages
-    except:
+    except Exception:
         return None
 
 def get_temp():
     try:
         result = subprocess.run("vcgencmd measure_temp", capture_output=True, text=True, shell=True)
         return result.stdout.strip().split("=")[1][:-2]
-    except:
+    except Exception:
         return None
         
 def uptime():
     try:
         result = subprocess.run("uptime", capture_output=True, text=True, shell=True)
         return result.stdout.strip()
-    except:
+    except Exception:
         return None

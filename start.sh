@@ -4,6 +4,7 @@
 # kill any remaining app components
 pkill flet
 pkill python3
+pkill python3
 
 pinctrl 19 a5 # enable PWM (alternate 5) on pin 19 (display backlight)
 
@@ -11,5 +12,5 @@ source ~/env/bin/activate # enable venv
 
 cd ~/Schluesselkasten-V2-software/
 
-flet run
+flet run &
 
