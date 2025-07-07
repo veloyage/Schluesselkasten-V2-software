@@ -45,6 +45,12 @@ def background_tasks(ui):
             else:
                 logger.warning(f"Response from Flink: {status_code}.")
                 errors["flink"] = f"Connection to flink failed: {status_code}."
+            if networking.mqtt is None:
+                networking.mqtt = networking.init_mqtt(settings["ADAFRUIT_IO_USERNAME"], settings["ADAFRUIT_IO_KEY"], settings["ADAFRUIT_IO_FEED"])
+                if networking.mqtt is None: # still none?
+                    errors["mqtt"] = "MQTT connection failed."
+            elif "mqtt" in errors:
+                del errors["flink"]
             last_5min = time.time()
             
             
@@ -186,12 +192,9 @@ logging.basicConfig(filename='schlüsselkasten.log',
 logger.addHandler(flink.FlinkLogHandler(logging.ERROR, ID, settings["FLINK_URL"], settings["FLINK_API_KEY"]))
 #logger.info("Logging to Flink started.")
 
-mqtt = networking.init_mqtt(settings["ADAFRUIT_IO_USERNAME"], settings["ADAFRUIT_IO_KEY"], settings["ADAFRUIT_IO_FEED"])
-if mqtt is not None:
-    logger.addHandler(networking.AIOLogHandler(logging.INFO, mqtt))
-    #logger.info("Logging to MQTT broker started.")
-else:
-    errors["MQTT"] = "MQTT connection failed."
+networking.mqtt = networking.init_mqtt(settings["ADAFRUIT_IO_USERNAME"], settings["ADAFRUIT_IO_KEY"], settings["ADAFRUIT_IO_FEED"])
+logger.addHandler(networking.AIOLogHandler(logging.INFO, networking.mqtt))
+#logger.info("Logging to MQTT broker started.")
 
 flink = flink.Flink(ID, settings["FLINK_URL"], settings["FLINK_API_KEY"])
 
