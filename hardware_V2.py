@@ -20,6 +20,8 @@ from pi5neo import Pi5Neo as SPIneo
 
 from rpi_hardware_pwm import HardwarePWM
 
+from math import floor
+
 logger = logging.getLogger(__name__)
 
 # infos
@@ -37,7 +39,7 @@ i2c_ee = I2C(0)  # Device is /dev/i2c-0
 # PWM
 # display backlight
 backlight = HardwarePWM(pwm_channel=1, hz=10000, chip=0)
-backlight.start(50) # full duty cycle
+backlight.start(50) 
 
 # piezo buzzer
 piezo = HardwarePWM(pwm_channel=0, hz=1000, chip=0)
@@ -179,22 +181,18 @@ def open_all():
     for index in range(len(compartments)):
         compartments[str(index + 1)].open()
         
-# open compartments for mounting (bottom left and right)
+# open compartments for mounting (block corners)
 def open_mounting():
-    if len(compartments) >= 20:
-        compartments["16"].open()
-        compartments["20"].open()
-    if len(compartments) >= 40:
-        compartments["36"].open()
-        compartments["40"].open()
-    if len(compartments) >= 60:
-        compartments["56"].open()
-        compartments["60"].open()
+    for block in range(floor(len(compartments) / 20)):
+        compartments[f"{1+20*block}"].open()
+        compartments[f"{5+20*block}"].open()
+        compartments[f"{16+20*block}"].open()
+        compartments[f"{20+20*block}"].open()
         
 def get_cpu_serial():
     try:
         with open("/sys/firmware/devicetree/base/serial-number") as f:
-            return(f.read())
+            return(f.read().strip('\x00'))
     except Exception as e:
         logger.warning(f"Error reading RPi serial: {e}")
         return "None"
@@ -202,7 +200,7 @@ def get_cpu_serial():
 def get_cpu_model():
     try:
         with open("/sys/firmware/devicetree/base/model") as f:
-            return(f.read())
+            return(f.read().strip('\x00'))
     except Exception as e:
         logger.warning(f"Error reading cpu model: {e}")
         return "None"

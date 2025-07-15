@@ -8,10 +8,10 @@
 import time
 import digitalio
 
-__version__ = "2.0.0-beta1"
+__version__ = "2.0.0-beta2"
 
 maximum_on_time = 2 # set maximum lock on time
-check_time = 0.2 # time to sleep between door checks
+check_time = 0.1 # time to sleep between door checks
 
 class compartment():
     def __init__(self, input_pin, output_pin): # initialize with one IO pair

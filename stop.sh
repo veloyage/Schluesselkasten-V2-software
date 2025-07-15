@@ -6,6 +6,7 @@ then
     /usr/bin/lwrespawn /usr/bin/wf-panel-pi &
     #/usr/bin/kanshi &
     /usr/bin/lxsession-xdg-autostart &
+    squeekboard &
     pkill flet
     pkill python3
 else
