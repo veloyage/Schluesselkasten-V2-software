@@ -87,7 +87,6 @@ class NFC():
         
         # Wait for a card
         uid = None
-        i = 0
 
         uid = device.wait_for_card(timeout=1)
 

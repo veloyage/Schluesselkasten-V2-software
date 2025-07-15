@@ -1,6 +1,5 @@
 from nfc import NFC
 from tomlkit.toml_file import TOMLFile
-import time
 
 toml = TOMLFile("settings.toml")
 settings = toml.read()

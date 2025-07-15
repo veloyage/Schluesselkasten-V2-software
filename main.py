@@ -81,8 +81,8 @@ def background_tasks(ui):
             # check battery status
             if hardware.battery_monitor is not None:
                 if hardware.battery_monitor.cell_voltage < 3.5:  # log if low battery
-                    logger.warning(f"Battery low: {battery_monitor.cell_voltage:.2f}V, {battery_monitor.cell_percent:.1f} %")
-                    ui.errors["battery"] = f"Battery low: {battery_monitor.cell_voltage:.2f}V, {battery_monitor.cell_percent:.1f} %"
+                    logger.warning(f"Battery low: {hardware.battery_monitor.cell_voltage:.2f}V, {hardware.battery_monitor.cell_percent:.1f} %")
+                    ui.errors["battery"] = f"Battery low: {hardware.battery_monitor.cell_voltage:.2f}V, {hardware.battery_monitor.cell_percent:.1f} %"
                 elif "battery" in errors:
                     del errors["battery"]
             last_30s = time.time()

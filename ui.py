@@ -116,7 +116,7 @@ class UI():
         # all the different page setups
         self.welcome = ft.Column(
             controls=[
-                ft.Card(ft.Container(ft.Image(src=f"/images/logo.png", width=800, height=100, fit=ft.ImageFit.CONTAIN,), padding=10), color=ft.Colors.WHITE, margin=0),
+                ft.Card(ft.Container(ft.Image(src="/images/logo.png", width=800, height=100, fit=ft.ImageFit.CONTAIN,), padding=10), color=ft.Colors.WHITE, margin=0),
                 ft.Card(content=ft.Container(content=ft.Text(value=self.text["welcome_title"], color=self.main_color, text_align=ft.TextAlign.LEFT, size=35, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=15),color=ft.Colors.WHITE, margin=0),
                 ft.ElevatedButton(on_click=lambda _: self.page_reconfigure(self.booking), icon=ft.Icons.EVENT, icon_color=ft.Colors.WHITE, text=f" {self.text['booking']}", color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=25, icon_size=45, text_style=ft.TextStyle(size=35))),
                 ft.ElevatedButton(on_click=lambda _: self.page_reconfigure(self.borrowing), icon=ft.Icons.OUTPUT,icon_color=ft.Colors.WHITE, text=f" {self.text['borrowing']}", color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=25, icon_size=45, text_style=ft.TextStyle(size=35))),
@@ -205,7 +205,7 @@ class UI():
             controls=[
                 ft.Card(content=ft.Container(content=ft.Text(value=self.text["booking_title"], color=self.main_color, text_align=ft.TextAlign.LEFT, size=35, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=10),color=ft.Colors.WHITE, margin=0),
                 ft.Card(content=ft.Container(content=ft.Text(value=self.text["booking_text"], color=self.main_color, text_align=ft.TextAlign.LEFT, size=24, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=15, margin=0, expand=True),color=ft.Colors.WHITE, margin=0),
-                ft.Card(ft.Container(ft.Image(src=f"/images/qrcode.png", width=450, height=430, fit=ft.ImageFit.CONTAIN,), padding=15), color=ft.Colors.WHITE, margin=0, expand=1),
+                ft.Card(ft.Container(ft.Image(src="/images/qrcode.png", width=450, height=430, fit=ft.ImageFit.CONTAIN,), padding=15), color=ft.Colors.WHITE, margin=0, expand=1),
             ],
             spacing=20
         )
@@ -352,8 +352,8 @@ class UI():
                         self.toml.write(self.settings)
                         logger.info(f"NFC tag with UID {uid} assigned to compartment {comp}.")
                     else:
-                        dlg_modal.content=ft.Text(f"Kein NFC-Tag erkannt.", style=ft.TextStyle(size=24))
-                        logger.warning(f"Tag assignment failed, no NFC tag found.")
+                        dlg_modal.content=ft.Text("Kein NFC-Tag erkannt.", style=ft.TextStyle(size=24))
+                        logger.warning("Tag assignment failed, no NFC tag found.")
                 else:
                     dlg_modal.content=ft.Text(f"Fach {comp} ist nicht gültig.", style=ft.TextStyle(size=24))
                     logger.info(f"Compartment {comp} is not valid, NFC-tag not saved.")
@@ -433,9 +433,9 @@ class UI():
         self.page.open(dlg_modal)
         # close dialog if no user reaction
         close_time = time.time() + 20
-        while time.time() < close_time and dlg_modal.open == True:
+        while time.time() < close_time and dlg_modal.open:
             time.sleep(0.1)
-        if dlg_modal.open == True:
+        if dlg_modal.open:
             self.answer_yes(dlg_modal, self.welcome, reason, compartment)
         hardware.compartments[compartment].set_LEDs("off")
         return True
@@ -460,11 +460,11 @@ class UI():
         self.page_reconfigure(destination)
         
     def open_all_clicked(self, e):
-        logger.info(f"All compartments opened from service mode.")
+        logger.info("All compartments opened from service mode.")
         hardware.open_all()
         
     def mounting_clicked(self, e):
-        logger.info(f"Mounting compartments opened from service mode.")
+        logger.info("Mounting compartments opened from service mode.")
         hardware.open_mounting()
         
     def reconfigure_appbar(self):
