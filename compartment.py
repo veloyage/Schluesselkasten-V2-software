@@ -58,7 +58,7 @@ class compartment():
                     pass
             self.LED_connector.update_strip(sleep_duration=0.001)                  
             
-    def get_inputs(self):
+    def is_open(self):
         open = True
         for input in self.status_inputs:
             if not input.value: # count inputs which are low -> switch is pressed, door is closed (considered closed if one switch is pressed)
@@ -76,8 +76,8 @@ class compartment():
         self.set_outputs(True)
         while counter > 0:
             time.sleep(check_time)# TODO: non-blocking?
-            if self.get_inputs():
+            if self.is_open():
                 break
             counter -= 1
         self.set_outputs(False)
-        return self.get_inputs()
+        return self.is_open()

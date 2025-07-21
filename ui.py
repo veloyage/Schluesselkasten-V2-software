@@ -1,6 +1,7 @@
 import flet as ft
 import time
 import subprocess
+import threading
 
 import logging
 import platform
@@ -17,11 +18,11 @@ def start_GUI(settings, toml, localization, flink, nfc, errors, background_tasks
     ft.app(target=UI(settings, toml, localization, flink, nfc, errors, background_tasks))
 
 class DigitButton(ft.ElevatedButton):
-    def __init__(self, button_clicked, text = None):
+    def __init__(self, text, button_clicked, ui):
         super().__init__()
         self.text = text
-        self.on_click = button_clicked
         self.data = text
+        self.on_click = ui.btn_dec(button_clicked)
         self.expand = 1
         self.padding = 0
         self.style=ft.ButtonStyle(text_style=ft.TextStyle(size=70, weight=ft.FontWeight.BOLD, font_family="Fira Mono"), shape=ft.RoundedRectangleBorder(radius=30))
@@ -29,7 +30,7 @@ class DigitButton(ft.ElevatedButton):
 
 
 class NumberPad(ft.Container):
-    def __init__(self, callback):
+    def __init__(self, ui, callback):
         super().__init__()
         self.number = ""
         self.callback = callback
@@ -37,23 +38,23 @@ class NumberPad(ft.Container):
             controls=[
                 ft.Row(
                     controls=[
-                        DigitButton(text="1", button_clicked=self.button_clicked),
-                        DigitButton(text="2", button_clicked=self.button_clicked),
-                        DigitButton(text="3", button_clicked=self.button_clicked),
+                        DigitButton("1", self.button_clicked, ui),
+                        DigitButton("2", self.button_clicked, ui),
+                        DigitButton("3", self.button_clicked, ui),
                     ]
                 ),
                 ft.Row(
                     controls=[
-                        DigitButton(text="4", button_clicked=self.button_clicked),
-                        DigitButton(text="5", button_clicked=self.button_clicked),
-                        DigitButton(text="6", button_clicked=self.button_clicked),
+                        DigitButton("4", self.button_clicked, ui),
+                        DigitButton("5", self.button_clicked, ui),
+                        DigitButton("6", self.button_clicked, ui),
                     ]
                 ),
                 ft.Row(
                     controls=[
-                        DigitButton(text="7", button_clicked=self.button_clicked),
-                        DigitButton(text="8", button_clicked=self.button_clicked),
-                        DigitButton(text="9", button_clicked=self.button_clicked),
+                        DigitButton("7", self.button_clicked, ui),
+                        DigitButton("8", self.button_clicked, ui),
+                        DigitButton("9", self.button_clicked, ui),
                     ]
                 ),
                 ft.Row(
@@ -61,14 +62,14 @@ class NumberPad(ft.Container):
                         ft.ElevatedButton(content=ft.Icon(name=ft.Icons.CLOSE, color=ft.Colors.RED, size=78),
                             bgcolor = ft.Colors.WHITE, 
                             style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30)), 
-                            on_click=self.button_clicked, 
+                            on_click=ui.btn_dec(self.button_clicked), 
                             data="x",
                             expand=1),
-                        DigitButton(text="0", button_clicked=self.button_clicked),
+                        DigitButton("0", self.button_clicked, ui),
                         ft.ElevatedButton(content=ft.Icon(name=ft.Icons.CHECK, color=ft.Colors.GREEN, size=78),
                             bgcolor = ft.Colors.WHITE, 
                             style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30)), 
-                            on_click=self.button_clicked, 
+                            on_click=ui.btn_dec(self.button_clicked), 
                             data="ok",
                             expand=1),
                     ]
@@ -104,8 +105,9 @@ class UI():
         self.page.window.full_screen = True
         self.page.bgcolor = ft.Colors.GREY_200
         self.page.theme = ft.Theme(color_scheme_seed=self.main_color)
-
         self.page.fonts = {"Fira Mono": "/fonts/FiraMono-Regular.ttf"}
+        self.radio_label_style = ft.TextStyle(color=self.main_color, weight=ft.FontWeight.BOLD, size=24)
+        # build the UI
         self.build_ui()
         # recycle this thread to do background tasks
         self.background_tasks(self)
@@ -114,16 +116,18 @@ class UI():
         # Remove all controls before rebuilding
         self.page.controls.clear()
         # all the different page setups
+        # welcome page
         self.welcome = ft.Column(
             controls=[
                 ft.Card(ft.Container(ft.Image(src="/images/logo.png", width=800, height=100, fit=ft.ImageFit.CONTAIN,), padding=10), color=ft.Colors.WHITE, margin=0),
                 ft.Card(content=ft.Container(content=ft.Text(value=self.text["welcome_title"], color=self.main_color, text_align=ft.TextAlign.LEFT, size=35, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=15),color=ft.Colors.WHITE, margin=0),
-                ft.ElevatedButton(on_click=lambda _: self.page_reconfigure(self.booking), icon=ft.Icons.EVENT, icon_color=ft.Colors.WHITE, text=f" {self.text['booking']}", color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=25, icon_size=45, text_style=ft.TextStyle(size=35))),
-                ft.ElevatedButton(on_click=lambda _: self.page_reconfigure(self.borrowing), icon=ft.Icons.OUTPUT,icon_color=ft.Colors.WHITE, text=f" {self.text['borrowing']}", color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=25, icon_size=45, text_style=ft.TextStyle(size=35))),
-                ft.ElevatedButton(on_click=lambda _: self.page_reconfigure(self.returning), icon=ft.Icons.EXIT_TO_APP,icon_color=ft.Colors.WHITE, text=f" {self.text['returning']}", color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=25, icon_size=45, text_style=ft.TextStyle(size=35))),
+                ft.ElevatedButton(on_click=self.btn_dec(lambda _: self.page_reconfigure(self.booking)), icon=ft.Icons.EVENT, icon_color=ft.Colors.WHITE, text=f" {self.text['booking']}", color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=25, icon_size=45, text_style=ft.TextStyle(size=35))),
+                ft.ElevatedButton(on_click=self.btn_dec(lambda _: self.page_reconfigure(self.borrowing)), icon=ft.Icons.OUTPUT,icon_color=ft.Colors.WHITE, text=f" {self.text['borrowing']}", color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=25, icon_size=45, text_style=ft.TextStyle(size=35))),
+                ft.ElevatedButton(on_click=self.btn_dec(lambda _: self.page_reconfigure(self.returning)), icon=ft.Icons.EXIT_TO_APP,icon_color=ft.Colors.WHITE, text=f" {self.text['returning']}", color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=25, icon_size=45, text_style=ft.TextStyle(size=35))),
             ],
             spacing=30
         )
+        # user help page
         self.help = ft.Column(
             controls=[
                 ft.Card(content=ft.Container(content=ft.Text(value=self.text["help_title"], color=self.main_color, text_align=ft.TextAlign.LEFT, size=35, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=10),color=ft.Colors.WHITE, margin=0),
@@ -151,27 +155,42 @@ class UI():
             ],
             spacing=10
         )
+        
+        # service page
         self.compartment  = ""  
         self.service_mode = ft.RadioGroup(content=ft.Column([
-            ft.Radio(value="open", label=self.text["service_open"], label_style=ft.TextStyle(color=self.main_color, weight=ft.FontWeight.BOLD, size=24), active_color=self.main_color),
-            ft.Radio(value="program", label=self.text["service_program"], label_style=ft.TextStyle(color=self.main_color, weight=ft.FontWeight.BOLD, size=24), active_color=self.main_color),
-            ft.Radio(value="reset", label=self.text["service_reset"], label_style=ft.TextStyle(color=self.main_color, weight=ft.FontWeight.BOLD, size=24), active_color=self.main_color)]))
+            ft.Radio(value="open", label=self.text["service_open"], label_style=self.radio_label_style, active_color=self.main_color),
+            ft.Radio(value="program", label=self.text["service_program"], label_style=self.radio_label_style, active_color=self.main_color),
+            ft.Radio(value="reset", label=self.text["service_reset"], label_style=self.radio_label_style, active_color=self.main_color)]))
         self.service_mode.value = "open"                        
         self.service = ft.Column(
             controls=[
                 ft.Card(content=ft.Container(content=ft.Text(value=self.text["service_menu"], color=self.main_color, text_align=ft.TextAlign.LEFT, size=35, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=10),color=ft.Colors.WHITE, margin=0),
                 ft.Row([
-                    ft.ElevatedButton(text=self.text["close_app"],on_click=lambda _: subprocess.call("./stop.sh"), color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=15, text_style=ft.TextStyle(size=24, weight=ft.FontWeight.BOLD)), expand=True),
-                    ft.ElevatedButton(text=self.text["restart_app"], on_click=lambda _: subprocess.call("./start.sh"), color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=15, text_style=ft.TextStyle(size=24, weight=ft.FontWeight.BOLD)), expand=True),
+                    ft.ElevatedButton(text=self.text["close_app"],on_click=self.btn_dec(lambda _: subprocess.call("./stop.sh")), color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=15, text_style=ft.TextStyle(size=24, weight=ft.FontWeight.BOLD)), expand=True),
+                    ft.ElevatedButton(text=self.text["restart_app"], on_click=self.btn_dec(lambda _: subprocess.call("./start.sh")), color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=15, text_style=ft.TextStyle(size=24, weight=ft.FontWeight.BOLD)), expand=True),
                 ]),
                 ft.Row([
-                    ft.ElevatedButton(text=self.text["open_all"],on_click=self.open_all_clicked, color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=15, text_style=ft.TextStyle(size=24, weight=ft.FontWeight.BOLD)), expand=True),
-                    ft.ElevatedButton(text=self.text["mounting_mode"], on_click=self.mounting_clicked, color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=15, text_style=ft.TextStyle(size=24, weight=ft.FontWeight.BOLD)), expand=True),
+                    ft.ElevatedButton(text=self.text["open_all"],on_click=self.btn_dec(self.open_all_clicked), color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=15, text_style=ft.TextStyle(size=24, weight=ft.FontWeight.BOLD)), expand=True),
+                    ft.ElevatedButton(text=self.text["settings"], on_click=self.btn_dec(lambda _: self.page_reconfigure(self.settings_page)), color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=15, text_style=ft.TextStyle(size=24, weight=ft.FontWeight.BOLD)), expand=True),
                 ]),
-                ft.Card(ft.Container(self.service_mode, padding = 10), color=ft.Colors.WHITE, margin=0), NumberPad(self.service_callback)
+                ft.Card(ft.Container(self.service_mode, padding = 10), color=ft.Colors.WHITE, margin=0), NumberPad(self, self.service_callback)
             ],
             spacing=10
         )
+        # settings page
+        self.settings_sound_switch = ft.Switch(label=self.text["settings_sound"], label_style=self.radio_label_style, value=self.settings["UI_sound"], on_change=self.btn_dec(self.toggle_sound), active_color=self.main_color)
+        self.settings_haptic_switch = ft.Switch(label=self.text["settings_haptic"], label_style=self.radio_label_style, value=self.settings["UI_haptic"], on_change=self.btn_dec(self.toggle_haptic), active_color=self.main_color)
+        self.settings_page = ft.Column(
+            controls=[
+                ft.Card(content=ft.Container(content=ft.Text(value=self.text["settings"], color=self.main_color, text_align=ft.TextAlign.LEFT, size=35, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=10), color=ft.Colors.WHITE, margin=0),
+                self.settings_sound_switch,
+                self.settings_haptic_switch,
+                ft.ElevatedButton(text=self.text["mounting_mode"], on_click=self.btn_dec(self.mounting_clicked), color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=15, text_style=ft.TextStyle(size=24, weight=ft.FontWeight.BOLD)), expand=True),
+                ],
+            spacing=20
+        )
+        # info page
         self.open_comps_text = ft.Text(value="", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD))
         self.network_text = ft.Text(value="", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD))
         self.temp_text = ft.Text(value="", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD))
@@ -201,6 +220,7 @@ class UI():
                         ],
                         spacing=20, expand=True
                     )
+        # booking page
         self.booking = ft.Column(
             controls=[
                 ft.Card(content=ft.Container(content=ft.Text(value=self.text["booking_title"], color=self.main_color, text_align=ft.TextAlign.LEFT, size=35, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=10),color=ft.Colors.WHITE, margin=0),
@@ -209,6 +229,7 @@ class UI():
             ],
             spacing=20
         )
+        # borrowing page
         self.code  = ""  
         self.code_display = ft.Text(value=self.code, size=178, color=self.main_color, width=460, max_lines=1, font_family="Fira Mono", style=ft.TextStyle(height=0.9))
         self.borrowing = ft.Column(
@@ -216,10 +237,11 @@ class UI():
                 ft.Card(content=ft.Container(content=ft.Text(value=self.text["borrowing_title"], color=self.main_color, text_align=ft.TextAlign.LEFT, size=35, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=10),color=ft.Colors.WHITE, margin=0),
                 ft.Card(ft.Container(ft.Text(value=self.text["borrowing_text"], size=24, color=self.main_color, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=10), color=ft.Colors.WHITE),
                 ft.Card(ft.Container(self.code_display, padding=10), color=ft.Colors.WHITE), 
-                NumberPad(self.borrowing_callback)
+                NumberPad(self, self.borrowing_callback)
             ],
             #spacing=20
         )
+        # returning page
         self.tag=ft.Image(src="/images/tag.png", width=100, height=70, fit=ft.ImageFit.CONTAIN, left=50, top=170, animate_position=ft.Animation(duration=2000, curve="ease"))
         self.returning = ft.Column(
             controls=[
@@ -235,21 +257,23 @@ class UI():
             ],
             spacing=20
         )
+        # app / info bar
         self.info_bar_row = ft.Row(controls=[ft.Text(value=self.text["status"], color=ft.Colors.WHITE, size=24)], alignment=ft.MainAxisAlignment.CENTER)
         self.info_bar = ft.Container(content=self.info_bar_row)
         self.titletext = ft.Text("ZE Schlüsselkasten", size=24, color=ft.Colors.WHITE)
         self.page.appbar = ft.AppBar(
             leading_width=60,
             toolbar_height=65,
-            leading=ft.IconButton(on_click=lambda _: self.page_reconfigure(self.welcome), icon=ft.Icons.ARROW_BACK, icon_color=ft.Colors.WHITE, icon_size=50),
+            leading=ft.IconButton(on_click=self.btn_dec(lambda _: self.page_reconfigure(self.welcome)), icon=ft.Icons.ARROW_BACK, icon_color=ft.Colors.WHITE, icon_size=50),
             title=self.titletext,
             center_title=True,
             actions=[
-                ft.IconButton(on_click=lambda _: self.change_language(), icon=ft.Icons.LANGUAGE, icon_color=ft.Colors.WHITE, icon_size=45),
-                ft.TextButton(on_click=lambda _: self.page_reconfigure(self.help), on_long_press=lambda _: self.page_reconfigure(self.info), icon=ft.Icons.HELP_OUTLINE,icon_color=ft.Colors.WHITE, style=ft.ButtonStyle(icon_size=45)),
+                ft.IconButton(on_click=self.btn_dec(lambda _: self.change_language()), icon=ft.Icons.LANGUAGE, icon_color=ft.Colors.WHITE, icon_size=45),
+                ft.TextButton(on_click=self.btn_dec(lambda _: self.page_reconfigure(self.help)), on_long_press=self.btn_dec(lambda _: self.page_reconfigure(self.info)), icon=ft.Icons.HELP_OUTLINE, icon_color=ft.Colors.WHITE, style=ft.ButtonStyle(icon_size=45)),
             ],
             bgcolor=self.main_color,   
-        )       
+        )     
+        # initially load the welcome page  
         self.page.add(self.welcome)        
         self.page.update()
         
@@ -263,6 +287,8 @@ class UI():
         
     # switch between welcome (initial), booking, borrowing, returning and service pages
     def page_reconfigure(self, destination):
+        if destination == self.welcome and self.service in self.page.controls:
+            desitnation = self.service
         if len(self.page.controls) > 0:
            self.page.remove_at(0)
         self.page.add(destination)
@@ -272,7 +298,6 @@ class UI():
         self.compartment = ""
         # run update
         self.page.update()
-        
         if destination == self.returning:
             self.run_animation()
         
@@ -303,6 +328,7 @@ class UI():
                     #barrier_color="#66660000"
                     )
                 self.page.open(dlg)
+                self.beep_warning()
                 time.sleep(5)
                 self.page.close(dlg)
                 logger.info(f"Code '{code}' was entered, but the code check returned: {status}.")
@@ -328,6 +354,7 @@ class UI():
                 success = self.open_compartment(comp, "service")
                 if success:
                     logger.info(f"Compartment {comp} was opened from service mode, content status: {hardware.compartments[comp].content_status}, door status: {hardware.compartments[comp].door_status}.")
+                    self.beep_success()
             elif self.service_mode.value == "program": 
                 # nfc_personalize, write dict, save to toml
                 if self.compartment == "0000":
@@ -351,6 +378,7 @@ class UI():
                         dlg_modal.content=ft.Text(f"NFC-Tag wird Fach {comp} zugewiesen.", style=ft.TextStyle(size=24))
                         self.toml.write(self.settings)
                         logger.info(f"NFC tag with UID {uid} assigned to compartment {comp}.")
+                        self.beep_success()
                     else:
                         dlg_modal.content=ft.Text("Kein NFC-Tag erkannt.", style=ft.TextStyle(size=24))
                         logger.warning("Tag assignment failed, no NFC tag found.")
@@ -371,6 +399,7 @@ class UI():
                 self.settings["NFC-tags"][self.compartment] = []
                 self.toml.write(self.settings)
                 logger.info(f"NFC assignment reset for compartment {self.compartment}.")
+                self.beep_success()
                 time.sleep(2)
                 self.page.close(dlg_modal)
             self.compartment = ""            
@@ -385,6 +414,7 @@ class UI():
                 content=ft.Text(self.text["invalid_compartment_text"].format(compartment=compartment),  style=ft.TextStyle(size=24)),
                 on_dismiss=None)
             self.page.open(dlg)
+            self.beep_warning()
             time.sleep(3)
             self.page.close(dlg)
             return False
@@ -395,8 +425,9 @@ class UI():
             on_dismiss=None)
         self.page.open(dlg)
         hardware.compartments[compartment].set_LEDs("white")
+        self.beep_success()
         success = hardware.compartments[compartment].open()
-        time.sleep(3)
+        time.sleep(1)
         if success:
            announcement = f"Bitte Fach {compartment} wieder schliessen."
            if reason == "borrow":
@@ -433,8 +464,19 @@ class UI():
         self.page.open(dlg_modal)
         # close dialog if no user reaction
         close_time = time.time() + 20
+        was_closed = False
         while time.time() < close_time and dlg_modal.open:
+            if not hardware.compartments[compartment].is_open() and not was_closed:
+                self.beep_success()
+                was_closed = True
             time.sleep(0.1)
+        if hardware.compartments[compartment].is_open():
+            for _ in range(3): # blink red LEDs
+                hardware.compartments[compartment].set_LEDs((255,0,0))
+                self.beep_warning()
+                hardware.compartments[compartment].set_LEDs("off")
+                time.sleep(1)      
+            logger.warning(f"Compartment {compartment} was not closed by user.")
         if dlg_modal.open:
             self.answer_yes(dlg_modal, self.welcome, reason, compartment)
         hardware.compartments[compartment].set_LEDs("off")
@@ -453,7 +495,6 @@ class UI():
             hardware.compartments[compartment].content_status = "empty"
         elif reason == "return": # returned
             hardware.compartments[compartment].content_status = "present"
-
 
     def close_modal(self, dialog, destination):
         self.page.close(dialog)
@@ -499,3 +540,51 @@ class UI():
             self.language = "de"
         self.text = self.localization[self.language]
         self.build_ui()
+
+    def reset_inactivity_timer(self):
+        if hasattr(self, 'inactivity_timer') and self.inactivity_timer:
+            self.inactivity_timer.cancel()
+        self.inactivity_timer = threading.Timer(60, self.return_to_welcome)
+        self.inactivity_timer.daemon = True
+        self.inactivity_timer.start()
+
+    def return_to_welcome(self):
+        # Only return if not already on welcome page
+        if not (len(self.page.controls) == 1 and self.page.controls[0] == self.welcome):
+            self.page_reconfigure(self.welcome)
+        # back to default language
+        if self.language != self.settings["UI_language"]:
+            self.language = self.settings["UI_language"]
+            self.text = self.localization[self.language]
+            self.build_ui()
+        
+    def beep_success(self):
+        if self.settings["UI_sound"]:
+            hardware.beep(duration=0.1, frequency=2000)
+            time.sleep(0.04)
+            hardware.beep(duration=0.1, frequency=2000)
+
+    def beep_warning(self):
+        if self.settings["UI_sound"]:
+            hardware.beep(duration=0.5, frequency=1000)
+        
+    def btn_dec(self, func):
+        def wrapper(*args, **kwargs):
+            self.reset_inactivity_timer()
+            try:
+                if hardware.haptic is not None and self.settings["UI_haptic"]:
+                    hardware.haptic.play()
+            except Exception:
+                pass
+            return func(*args, **kwargs)
+        return wrapper
+
+    def toggle_sound(self, e):
+        self.settings["UI_sound"] = e.control.value
+        self.toml.write(self.settings)
+        self.page.update()
+
+    def toggle_haptic(self, e):
+        self.settings["UI_haptic"] = e.control.value
+        self.toml.write(self.settings)
+        self.page.update()

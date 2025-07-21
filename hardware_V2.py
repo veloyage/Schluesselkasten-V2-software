@@ -13,6 +13,7 @@ import adafruit_drv2605 # haptic driver
 
 import subprocess  # For executing a shell command
 import logging
+import time
 
 import compartment
 
@@ -43,11 +44,6 @@ backlight.start(50)
 
 # piezo buzzer
 piezo = HardwarePWM(pwm_channel=0, hz=1000, chip=0)
-#backlight.start(50) # 50%
-#pwm.change_duty_cycle(50)
-#pwm.change_frequency(25_000)
-#pwm.stop()
-
 
 # set up acc interrupt pin
 acc_int = digitalio.DigitalInOut(board.D24)
@@ -78,7 +74,7 @@ LED_connector_3.update_strip(sleep_duration=0.001)
 try:
     haptic = adafruit_drv2605.DRV2605(i2c_sys) # 0x5A
     haptic.use_LRM()
-    haptic.sequence[0] = adafruit_drv2605.Effect(5) # effect 1: strong click, 4: sharp click 100%, 5: sharp click 60%,  24: sharp tick,  27: short double click strong, 16: 1000 ms alert, 21: medium click, 
+    haptic.sequence[0] = adafruit_drv2605.Effect(26) # effect 1: strong click, 4: sharp click 100%, 5: sharp click 60%,  24: sharp tick, 25-26 weaker ticks,  27: short double click strong, 16: 1000 ms alert, 21: medium click, 
 except Exception as e:
     haptic = None
     logger.error(f"Error setting up haptic engine: {e}")
@@ -172,7 +168,7 @@ def init_port_expanders(large_compartments):
 def check_all():
     open_comps = []
     for index in range(len(compartments)):
-        if compartments[str(index + 1)].get_inputs():
+        if compartments[str(index + 1)].is_open():
             open_comps.append(str(index + 1))
     return open_comps
     
@@ -259,3 +255,10 @@ def uptime():
         return result.stdout.strip()
     except Exception:
         return None
+
+def beep(duration=0.1, frequency=1000):
+    piezo.change_frequency(frequency)
+    piezo.start(50)
+    time.sleep(duration)
+    piezo.stop()
+

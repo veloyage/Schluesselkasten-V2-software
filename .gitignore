@@ -1,5 +1,5 @@
 # Settings files
-settings.toml
+**/settings.toml
 
 storage/
 

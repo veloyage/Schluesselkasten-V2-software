@@ -15,11 +15,6 @@ from nfc import NFC
 # version string
 __version__ = "2.0.0-beta3"
 
-#
-# functions
-#
-
-
 # background tasks function
 def background_tasks(ui):
     # last time tasks were run
@@ -135,6 +130,7 @@ def background_tasks(ui):
                             if comp == "service":
                                 logging.info(f"NFC service tag with UID {uid} was scanned.")    
                                 ui.page_reconfigure(ui.service)
+                                ui.beep_success()
                             else:
                                 ui.open_compartment(comp, "return") 
                                 logging.info(f"NFC tag for compartment {comp} with UID {uid} was scanned.")    
