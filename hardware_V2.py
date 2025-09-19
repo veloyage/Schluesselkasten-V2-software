@@ -13,6 +13,7 @@ import adafruit_drv2605 # haptic driver
 
 import subprocess  # For executing a shell command
 import logging
+import time
 
 import compartment
 
@@ -20,10 +21,12 @@ from pi5neo import Pi5Neo as SPIneo
 
 from rpi_hardware_pwm import HardwarePWM
 
+from math import floor
+
 logger = logging.getLogger(__name__)
 
 # infos
-__version__ = "2.0.0-beta1"
+__version__ = "2.0.0-beta4"
 
 nfc_serial = "/dev/ttyAMA3"
 
@@ -37,15 +40,10 @@ i2c_ee = I2C(0)  # Device is /dev/i2c-0
 # PWM
 # display backlight
 backlight = HardwarePWM(pwm_channel=1, hz=10000, chip=0)
-backlight.start(50) # full duty cycle
+backlight.start(50) 
 
 # piezo buzzer
 piezo = HardwarePWM(pwm_channel=0, hz=1000, chip=0)
-#backlight.start(50) # 50%
-#pwm.change_duty_cycle(50)
-#pwm.change_frequency(25_000)
-#pwm.stop()
-
 
 # set up acc interrupt pin
 acc_int = digitalio.DigitalInOut(board.D24)
@@ -76,7 +74,9 @@ LED_connector_3.update_strip(sleep_duration=0.001)
 try:
     haptic = adafruit_drv2605.DRV2605(i2c_sys) # 0x5A
     haptic.use_LRM()
-    haptic.sequence[0] = adafruit_drv2605.Effect(5) # effect 1: strong click, 4: sharp click 100%, 5: sharp click 60%,  24: sharp tick,  27: short double click strong, 16: 1000 ms alert, 21: medium click, 
+    haptic.library = adafruit_drv2605.LIBRARY_LRA
+    haptic.sequence[0] = adafruit_drv2605.Effect(26) # effect 1: strong click, 4: sharp click 100%, 5: sharp click 60%,  24: sharp tick, 25-26 weaker ticks,  27: short double click strong, 16: 1000 ms alert, 21: medium click, 
+    haptic.mode = adafruit_drv2605.MODE_EXTTRIGEDGE
 except Exception as e:
     haptic = None
     logger.error(f"Error setting up haptic engine: {e}")
@@ -97,6 +97,8 @@ except Exception as e:
 
 try:
     light_sensor = adafruit_veml7700.VEML7700(i2c_sys) # 0x10 read: light_sensor.lux
+    light_sensor.light_integration_time = light_sensor.ALS_400MS
+    light_sensor.light_gain = light_sensor.ALS_GAIN_2
 except Exception as e:
     light_sensor = None
     logger.error(f"Error setting up brightness sensor: {e}")
@@ -170,7 +172,7 @@ def init_port_expanders(large_compartments):
 def check_all():
     open_comps = []
     for index in range(len(compartments)):
-        if compartments[str(index + 1)].get_inputs():
+        if compartments[str(index + 1)].is_open():
             open_comps.append(str(index + 1))
     return open_comps
     
@@ -179,22 +181,18 @@ def open_all():
     for index in range(len(compartments)):
         compartments[str(index + 1)].open()
         
-# open compartments for mounting (bottom left and right)
+# open compartments for mounting (block corners)
 def open_mounting():
-    if len(compartments) >= 20:
-        compartments["16"].open()
-        compartments["20"].open()
-    if len(compartments) >= 40:
-        compartments["36"].open()
-        compartments["40"].open()
-    if len(compartments) >= 60:
-        compartments["56"].open()
-        compartments["60"].open()
+    for block in range(floor(len(compartments) / 20)):
+        compartments[f"{1+20*block}"].open()
+        compartments[f"{5+20*block}"].open()
+        compartments[f"{16+20*block}"].open()
+        compartments[f"{20+20*block}"].open()
         
 def get_cpu_serial():
     try:
         with open("/sys/firmware/devicetree/base/serial-number") as f:
-            return(f.read())
+            return(f.read().strip('\x00'))
     except Exception as e:
         logger.warning(f"Error reading RPi serial: {e}")
         return "None"
@@ -202,7 +200,7 @@ def get_cpu_serial():
 def get_cpu_model():
     try:
         with open("/sys/firmware/devicetree/base/model") as f:
-            return(f.read())
+            return(f.read().strip('\x00'))
     except Exception as e:
         logger.warning(f"Error reading cpu model: {e}")
         return "None"
@@ -261,3 +259,26 @@ def uptime():
         return result.stdout.strip()
     except Exception:
         return None
+
+def beep(duration=0.1, frequency=1000):
+    piezo.change_frequency(frequency)
+    piezo.start(50)
+    time.sleep(duration)
+    piezo.stop()
+
+def get_memory_info():
+    try:
+        with open('/proc/meminfo') as f:
+            mem_info = {}
+            for line in f:
+                key, value = line.split(':')
+                mem_info[key.strip()] = int(value.strip().split()[0])  # Convert KB to MB
+            return f"{mem_info['MemAvailable']//1024}/{mem_info['MemTotal']//1024} MB"
+    except Exception as e:
+        logger.warning(f"Error reading memory info: {e}")
+        return "N/A"
+
+def trigger_haptic(): # the haptic driver has an additional trigger pin
+    hapt_int.value = True
+    time.sleep(0.00001)
+    hapt_int.value = False

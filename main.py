@@ -2,6 +2,7 @@ import time
 import platform
 from tomlkit.toml_file import TOMLFile
 import logging
+import os
 
 import ui
 import hardware_V2 as hardware
@@ -10,15 +11,8 @@ import flink
 import networking
 from nfc import NFC
 
-# TODO: GUi watchdog: if no interaction for time x, go back to welcome page
-
 # version string
-__version__ = "2.0.0-beta1"
-
-#
-# functions
-#
-
+__version__ = "2.0.0-beta4"
 
 # background tasks function
 def background_tasks(ui):
@@ -26,28 +20,29 @@ def background_tasks(ui):
     last_1s = 0 # fastest task, 1 or 2 times per second
     last_5s = 0
     last_30s = 0
-    last_5min = 0 # slowest task, roughly every 5 minutes
+    next_5min = 0 # slowest task, every 5 minutes, every 30s in case of error
     
+    # check tasks once per second
     while True:
-        while last_1s + 0.5 > time.time():
+        while last_1s + 1 > time.time():
             time.sleep(0.1)
         last_1s = time.time()
         
-        ### runs roughly every 5 minutes ###
-        # send keepalive message
-        if last_5min + 300 < time.time():  
+        ### runs every 5 minutes, every 30s in case of error ###
+        if next_5min < time.time():  
+            # send keepalive message
             status_code = flink.put_status(time.monotonic(), SN, __version__, small_compartments, large_compartments)
             if status_code == 200:
-                if last_5min == 0 or "flink" in errors:
+                if next_5min == 0 or "flink" in errors:
                     logger.info(f"Response from Flink: {status_code}.")
                 if "flink" in errors:
                     del errors["flink"]
+                next_5min = time.time() + 300
             else:
                 logger.warning(f"Response from Flink: {status_code}.")
-                errors["flink"] = f"Connection to flink failed: {status_code}."
-            last_5min = time.time()
-            
-            
+                errors["flink"] = f"Connection to flink failed: {status_code}."   
+                next_5min = time.time() + 30  # try again in 30s if error
+
         ### runs roughly every 30 s ###
         if time.time() > last_30s + 30:
             # check for raspberry pi hardware messages
@@ -69,6 +64,15 @@ def background_tasks(ui):
             else:
                 logger.warning(f"Ping to google failed: {ping} ms.")
                 errors["ping"] = f"Ping to google failed: {ping} ms."
+
+            # check if MQTT is ok, reconnect if necessary
+            if networking.mqtt is None or not networking.mqtt.is_connected():
+                networking.init_mqtt(settings["ADAFRUIT_IO_USERNAME"], settings["ADAFRUIT_IO_KEY"], settings["ADAFRUIT_IO_FEED"])
+                if networking.mqtt is None or not networking.mqtt.is_connected(): # still not?
+                    errors["MQTT"] = "MQTT connection failed."
+            elif "MQTT" in errors:
+                del errors["MQTT"]
+            
             
             # check battery status
             if hardware.battery_monitor is not None:
@@ -89,23 +93,27 @@ def background_tasks(ui):
         # backlight control
         if hardware.light_sensor is not None:
             try:
-                ambient_brightness = hardware.light_sensor.lux  # check brightness
-                # modify duty cycle in % by maximum 10% at a time (filter)
-                backlight = 0.1 * (100*ambient_brightness/settings["max_brightness"]-hardware.backlight._duty_cycle) + hardware.backlight._duty_cycle 
-                if backlight > 100:
-                    backlight = 100
-                elif backlight < settings["min_backlight"]:
-                    backlight = settings["min_backlight"]
-                hardware.backlight.change_duty_cycle(backlight)
-                #hardware.LED_internal.brightness = 0.1 + 0.9 * light / 100
-                #hardware.LED_connector_1.brightness = 0.1 + 0.9 * light / 100
-                #hardware.LED_connector_2.brightness = 0.1 + 0.9 * light / 100
+                current_DC = hardware.backlight._duty_cycle
+                error = current_DC - 100*hardware.light_sensor.lux/settings["max_brightness"] # positive - display too bright
+                if abs(error) < 3: 
+                    pass # do nothing if less than 3% off
+                elif error > 0:
+                    new_DC = current_DC - 1
+                else:
+                    new_DC = current_DC + 1
+
+                if new_DC > 100:
+                    new_DC = 100
+                elif new_DC < settings["min_backlight"]:
+                    new_DC = settings["min_backlight"]
+                hardware.backlight.change_duty_cycle(new_DC)
+
                 if "lux" in errors:
                     del errors["lux"]
             except Exception as e:
                 logger.error(f"Error getting ambient brightness: {e}")
                 ui.errors["lux"] = f"Error getting ambient brightness: {e}"
-        else: # no sensor found
+        else: # no sensor found, do 80%
             hardware.backlight.change_duty_cycle(80)
 
         # info page update (if open)
@@ -113,18 +121,20 @@ def background_tasks(ui):
             ui.update_info()
             ui.page.update()
         
-        # check if NFC tag is present, timeout=0.5 s                       
+        # check if NFC tag is present                     
         if (ui.returning in ui.page or ui.welcome in ui.page) and nfc is not None:
             try:
                 uid = nfc.check()
-                if uid is not None:
-                    logging.info(f"NFC tag with UID {uid} was scanned.")                
+                if uid is not None:          
                     for comp, comp_tags in settings["NFC-tags"].items():
                         if uid in comp_tags:
                             if comp == "service":
+                                logging.info(f"NFC service tag with UID {uid} was scanned.")    
                                 ui.page_reconfigure(ui.service)
+                                ui.beep_success()
                             else:
                                 ui.open_compartment(comp, "return") 
+                                logging.info(f"NFC tag for compartment {comp} with UID {uid} was scanned.")    
                 elif "NFC" in errors:
                     del errors["NFC"]
             except Exception as e:
@@ -136,7 +146,7 @@ def background_tasks(ui):
 # LOAD SETTINGS
 #
 
-toml = TOMLFile("settings.toml")
+toml = TOMLFile("assets/settings/settings.toml")
 settings = toml.read()
 ID = settings["ID"]
 SN = settings["SN"]
@@ -148,7 +158,20 @@ large_compartments = settings["LARGE_COMPARTMENTS"]
 aio_username = settings["ADAFRUIT_IO_USERNAME"]
 aio_key = settings["ADAFRUIT_IO_KEY"]
 aio_feed_name = settings["ADAFRUIT_IO_FEED"]
-   
+
+localization = {}
+lang_path = "assets/settings/"
+lang_files = [f for f in os.listdir(lang_path) if f.startswith("lang_") and f.endswith(".toml")]
+
+for lang_file in lang_files:
+    # Extract language code from filename (e.g., "lang_en.toml" -> "en")
+    lang_code = lang_file[5:-5]  
+    try:
+        localization[lang_code] = TOMLFile(os.path.join(lang_path, lang_file)).read()
+        print(f"Loaded language file: {lang_file}")
+    except Exception as e:
+        print(f"Error loading language file {lang_file}: {e}")
+        
 #
 # LOGGING SETUP
 #
@@ -186,12 +209,9 @@ logging.basicConfig(filename='schlüsselkasten.log',
 logger.addHandler(flink.FlinkLogHandler(logging.ERROR, ID, settings["FLINK_URL"], settings["FLINK_API_KEY"]))
 #logger.info("Logging to Flink started.")
 
-mqtt = networking.init_mqtt(settings["ADAFRUIT_IO_USERNAME"], settings["ADAFRUIT_IO_KEY"], settings["ADAFRUIT_IO_FEED"])
-if mqtt is not None:
-    logger.addHandler(networking.AIOLogHandler(logging.INFO, mqtt))
-    #logger.info("Logging to MQTT broker started.")
-else:
-    errors["MQTT"] = "MQTT connection failed."
+networking.init_mqtt(settings["ADAFRUIT_IO_USERNAME"], settings["ADAFRUIT_IO_KEY"], settings["ADAFRUIT_IO_FEED"])
+logger.addHandler(networking.AIOLogHandler(logging.INFO))
+#logger.info("Logging to MQTT broker started.")
 
 flink = flink.Flink(ID, settings["FLINK_URL"], settings["FLINK_API_KEY"])
 
@@ -240,4 +260,4 @@ if len(open_comps) != 0:
 # Start GUI
 #
 
-ui.start_GUI(settings, toml, flink, nfc, errors, background_tasks)
+ui.start_GUI(settings, toml, localization, flink, nfc, errors, background_tasks)

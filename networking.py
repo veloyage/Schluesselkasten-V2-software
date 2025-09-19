@@ -7,7 +7,7 @@ import ping3
 
 import hardware_V2 as hardware
 
-__version__ = "2.0.0-beta1"
+__version__ = "2.0.0-beta4"
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +18,7 @@ def ping():
 #
 # MQTT
 #
+mqtt = None
 
 # Callback function which will be called when a connection is established
 def connected(mqtt):
@@ -33,8 +34,7 @@ def disconnected(mqtt):
     sys.exit(1)
 
 def init_mqtt(ADAFRUIT_IO_USERNAME, ADAFRUIT_IO_KEY, aio_feed_name):
-    # try to connect to MQTT broker and use it for logging
-    
+    global mqtt
     # Create an MQTT instance.
     mqtt = MQTTClient(ADAFRUIT_IO_USERNAME, ADAFRUIT_IO_KEY)
     
@@ -43,7 +43,11 @@ def init_mqtt(ADAFRUIT_IO_USERNAME, ADAFRUIT_IO_KEY, aio_feed_name):
     mqtt.on_disconnect = disconnected
     mqtt.on_message    = message
     mqtt.feed_name = aio_feed_name
+
+    connect_mqtt()
     
+def connect_mqtt():    
+    global mqtt
     try:
         # Connect to the Adafruit IO server.
         mqtt.connect()
@@ -88,11 +92,11 @@ def process_mqtt_command(payload):
             # tamper_alarm = "on"
 
 class AIOLogHandler(logging.Handler):
-    def __init__(self, level, mqtt):
+    def __init__(self, level):
         super().__init__(level)
-        self.mqtt = mqtt
     def emit(self, record):
+        global mqtt
         try:
-            self.mqtt.publish(self.mqtt.feed_name + "-status", self.format(record))
+            mqtt.publish(mqtt.feed_name + "-status", self.format(record))
         except Exception as e:  # logging would trigger further exceptions
             print(f"Error when logging to MQTT broker: {e}")
