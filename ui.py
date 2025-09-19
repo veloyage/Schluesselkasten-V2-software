@@ -293,8 +293,6 @@ class UI():
         
     # switch between welcome (initial), booking, borrowing, returning and service pages
     def page_reconfigure(self, destination):
-        if destination == self.welcome and self.service in self.page.controls:
-            desitnation = self.service
         if len(self.page.controls) > 0:
            self.page.remove_at(0)
         self.page.add(destination)
