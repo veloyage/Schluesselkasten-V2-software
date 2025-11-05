@@ -12,7 +12,7 @@ logging.getLogger("flet").setLevel(logging.WARNING)
 logging.getLogger("flet_web").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
-__version__ = "2.0.0-beta4"
+__version__ = "2.0.0-beta5"
 
 def start_GUI(settings, toml, localization, flink, nfc, errors, background_tasks):
     ft.app(target=UI(settings, toml, localization, flink, nfc, errors, background_tasks))
@@ -168,7 +168,7 @@ class UI():
                 ft.Card(content=ft.Container(content=ft.Text(value=self.text["service_menu"], color=self.main_color, text_align=ft.TextAlign.LEFT, size=35, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=10),color=ft.Colors.WHITE, margin=0),
                 ft.Row([
                     ft.ElevatedButton(text=self.text["close_app"],on_click=self.btn_dec(lambda _: subprocess.call("./stop.sh")), color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=15, text_style=ft.TextStyle(size=24, weight=ft.FontWeight.BOLD)), expand=True),
-                    ft.ElevatedButton(text=self.text["restart_app"], on_click=self.btn_dec(lambda _: subprocess.call("./start.sh")), color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=15, text_style=ft.TextStyle(size=24, weight=ft.FontWeight.BOLD)), expand=True),
+                    ft.ElevatedButton(text=self.text["restart_app"], on_click=self.btn_dec(lambda _: subprocess.call("systemctl --user restart schluesselkasten.service")), color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=15, text_style=ft.TextStyle(size=24, weight=ft.FontWeight.BOLD)), expand=True),
                 ]),
                 ft.Row([
                     ft.ElevatedButton(text=self.text["open_all"],on_click=self.btn_dec(self.open_all_clicked), color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=15, text_style=ft.TextStyle(size=24, weight=ft.FontWeight.BOLD)), expand=True),
@@ -181,11 +181,18 @@ class UI():
         # settings page
         self.settings_sound_switch = ft.Switch(label=self.text["settings_sound"], label_style=self.radio_label_style, value=self.settings["UI_sound"], on_change=self.btn_dec(self.toggle_sound), active_color=self.main_color)
         self.settings_haptic_switch = ft.Switch(label=self.text["settings_haptic"], label_style=self.radio_label_style, value=self.settings["UI_haptic"], on_change=self.btn_dec(self.toggle_haptic), active_color=self.main_color)
+        self.settings_charging_switch = ft.Switch(label=self.text["settings_charging"], label_style=self.radio_label_style, value=True, on_change=self.btn_dec(self.toggle_charging), active_color=self.main_color)
+        self.settings_accel_alarm_switch = ft.Switch(label=self.text["settings_accel_alarm"], label_style=self.radio_label_style, value=self.settings["UI_haptic"], on_change=self.btn_dec(self.toggle_charging), active_color=self.main_color, disabled=True)
+        self.settings_brightness_slider = ft.Slider(value=self.settings["brightness_adjustment"], on_change=self.brightness_slider_changed, active_color=self.main_color)
         self.settings_page = ft.Column(
             controls=[
                 ft.Card(content=ft.Container(content=ft.Text(value=self.text["settings"], color=self.main_color, text_align=ft.TextAlign.LEFT, size=35, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=10), color=ft.Colors.WHITE, margin=0),
                 self.settings_sound_switch,
                 self.settings_haptic_switch,
+                self.settings_charging_switch,
+                self.settings_accel_alarm_switch,
+                ft.Text("Brightness adjustment:", color=self.main_color, size=24, style=ft.TextStyle(weight=ft.FontWeight.BOLD)),
+                self.settings_brightness_slider, 
                 ft.ElevatedButton(text=self.text["mounting_mode"], on_click=self.btn_dec(self.mounting_clicked), color = ft.Colors.WHITE, bgcolor = self.main_color, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=30), padding=15, text_style=ft.TextStyle(size=24, weight=ft.FontWeight.BOLD)), expand=True),
                 ],
             spacing=20
@@ -199,6 +206,8 @@ class UI():
         self.uptime_text = ft.Text(value="", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD))
         self.error_text = ft.Text(value="", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD))
         self.brightness_text = ft.Text(value="", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD))
+        self.power_text = ft.Text(value="", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD))
+        self.battery_text = ft.Text(value="", color=self.main_color, text_align=ft.TextAlign.LEFT, size=16, style=ft.TextStyle(weight=ft.FontWeight.BOLD))
         self.update_info()
         self.info = ft.Column([
             ft.Card(ft.Container(ft.Text(value="Info", color=self.main_color, text_align=ft.TextAlign.LEFT, size=35, style=ft.TextStyle(weight=ft.FontWeight.BOLD)), padding=10), color=ft.Colors.WHITE, margin=0),
@@ -219,8 +228,10 @@ class UI():
                 self.memory_text,
                 self.uptime_text,
                 self.brightness_text,
+                self.power_text,
+                self.battery_text,
                 self.error_text,
-                ],scroll=ft.ScrollMode.ALWAYS),
+                ],scroll=ft.ScrollMode.ALWAYS, spacing=2),
             padding=10),
         color=ft.Colors.WHITE, margin=0, expand=True),
         ],
@@ -544,6 +555,9 @@ class UI():
             self.brightness_text.value = f"Ambient brightness: {hardware.light_sensor.lux:.2f} lux, Display brightness: {hardware.backlight._duty_cycle}%"
         else:
             self.brightness_text.value = f"Ambient brightness: N/A, Display brightness: {hardware.backlight._duty_cycle}%"
+        if hardware.battery_monitor is not None:
+            self.battery_text.value = f"Input: {hardware.battery_monitor.VBUS:.0f} mV, {hardware.battery_monitor.IBUS:.0f} mA"
+            self.power_text.value = f"Battery: {hardware.battery_monitor.VBAT:.0f} mV, {hardware.battery_monitor.IBAT:.0f} mA"
 
     def change_language(self):
         # Get list of available languages
@@ -593,8 +607,7 @@ class UI():
             self.reset_inactivity_timer()
             try:
                 if hardware.haptic is not None and self.settings["UI_haptic"]:
-                    #hardware.haptic.play()
-                    hardware.trigger_haptic() # faster
+                    hardware.trigger_haptic()
             except Exception:
                 pass
             return func(*args, **kwargs)
@@ -609,3 +622,16 @@ class UI():
         self.settings["UI_haptic"] = e.control.value
         self.toml.write(self.settings)
         self.page.update()
+
+    def toggle_charging(self, e):
+        hardware.battery_monitor.enable_charging(e.control.value)
+        self.page.update()
+
+    def brightness_slider_changed(self, e):
+        adjustment = e.control.value
+        self.settings["brightness_adjustment"] = adjustment
+        if hardware.light_sensor is not None:
+            hardware.backlight.change_duty_cycle(self.settings["brightness_adjustment"]*100*hardware.light_sensor.lux/(self.settings["max_brightness"]))
+        else:
+            hardware.backlight.change_duty_cycle(self.settings["brightness_adjustment"]*80)
+        self.toml.write(self.settings)

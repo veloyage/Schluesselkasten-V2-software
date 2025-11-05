@@ -9,7 +9,7 @@ from desfire import DESFire, DESFireKey, diversify_key, get_list, to_hex_string,
 from desfire.enums import DESFireCommunicationMode, DESFireFileType, DESFireKeySettings, DESFireKeyType
 from desfire.schemas import FilePermissions, FileSettings, KeySettings
 
-__version__ = "2.0.0-beta4"
+__version__ = "2.0.0-beta5"
 
 logging.getLogger("desfire").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
@@ -46,8 +46,10 @@ class NFC():
         uid = device.wait_for_card(timeout=0.9)
 
         if not uid:
+            logger.debug("No card detected.")
             return None
         try:
+            logger.debug("Card detected:." + to_hex_string(uid).replace(' ', ''))
             # Create DESFire object, which allows further communication with the card
             desfire = DESFire(device)
             

@@ -12,7 +12,7 @@ import networking
 from nfc import NFC
 
 # version string
-__version__ = "2.0.0-beta4"
+__version__ = "2.0.0-beta5"
 
 # background tasks function
 def background_tasks(ui):
@@ -21,6 +21,8 @@ def background_tasks(ui):
     last_5s = 0
     last_30s = 0
     next_5min = 0 # slowest task, every 5 minutes, every 30s in case of error
+
+    critical_battery_seconds = 0  # counter for critical battery shutdown
     
     # check tasks once per second
     while True:
@@ -28,7 +30,7 @@ def background_tasks(ui):
             time.sleep(0.1)
         last_1s = time.time()
         
-        ### runs every 5 minutes, every 30s in case of error ###
+        ### runs roughly every 5 minutes,  ###
         if next_5min < time.time():  
             # send keepalive message
             status_code = flink.put_status(time.monotonic(), SN, __version__, small_compartments, large_compartments)
@@ -73,14 +75,6 @@ def background_tasks(ui):
             elif "MQTT" in errors:
                 del errors["MQTT"]
             
-            
-            # check battery status
-            if hardware.battery_monitor is not None:
-                if hardware.battery_monitor.cell_voltage < 3.5:  # log if low battery
-                    logger.warning(f"Battery low: {hardware.battery_monitor.cell_voltage:.2f}V, {hardware.battery_monitor.cell_percent:.1f} %")
-                    ui.errors["battery"] = f"Battery low: {hardware.battery_monitor.cell_voltage:.2f}V, {hardware.battery_monitor.cell_percent:.1f} %"
-                elif "battery" in errors:
-                    del errors["battery"]
             last_30s = time.time()
         
         ### runs roughly every 5 s ### 
@@ -88,13 +82,40 @@ def background_tasks(ui):
         if time.time() > last_5s + 5:
             ui.reconfigure_appbar()
             last_5s = time.time()
+
+            # check supply status
+            if hardware.battery_monitor is not None:
+                VBUS = hardware.battery_monitor.VBUS
+                VBAT = hardware.battery_monitor.VBAT
+                if VBUS < 4000 and "power" not in errors:
+                    logger.warning(f"Power supply disconnected, VBUS: {VBUS} mV.")
+                    errors["power"] = f"Power supply disconnected, VBUS: {VBUS} mV."
+                if VBUS > 5000:
+                    if "power" in errors:
+                        del errors["power"]
+                if VBAT < 3500 and "battery" not in errors:
+                    logger.warning(f"Battery low: {VBAT} mV.")
+                    errors["battery"] = f"Battery low: {VBAT} mV."
+                if VBAT > 3700:
+                    if "battery" in errors:
+                        del errors["battery"] 
+                if VBAT < 3000 and VBUS < 4000:
+                    critical_battery_seconds += 1
+                    if critical_battery_seconds >= 5: # 5 consecutive low readings
+                        logger.error(f"Battery critically low: {VBAT} mV.")
+                        logger.error("Shutting down, apply power to restart.")
+                        time.sleep(1)
+                        hardware.battery_monitor.batfet_control("shipmode")
+                else:
+                    critical_battery_seconds = 0
         
         ### runs roughly every second ###
         # backlight control
         if hardware.light_sensor is not None:
             try:
+                # calculate new duty cycle
                 current_DC = hardware.backlight._duty_cycle
-                error = current_DC - 100*hardware.light_sensor.lux/settings["max_brightness"] # positive - display too bright
+                error = current_DC - settings["brightness_adjustment"]*100*hardware.light_sensor.lux/(settings["max_brightness"]) # positive - display too bright
                 if abs(error) < 3: 
                     pass # do nothing if less than 3% off
                 elif error > 0:
@@ -113,8 +134,8 @@ def background_tasks(ui):
             except Exception as e:
                 logger.error(f"Error getting ambient brightness: {e}")
                 ui.errors["lux"] = f"Error getting ambient brightness: {e}"
-        else: # no sensor found, do 80%
-            hardware.backlight.change_duty_cycle(80)
+        else: # no sensor found, do 80% tied to brightness adjustment setting
+            hardware.backlight.change_duty_cycle(80 * settings["brightness_adjustment"])
 
         # info page update (if open)
         if ui.info in ui.page:
@@ -140,6 +161,17 @@ def background_tasks(ui):
             except Exception as e:
                 logger.warning(f"Error checking NFC tag: {e}")
                 ui.errors["NFC"] = f"Error checking NFC tag: {e}"
+
+        #check for on-hat button press to open settings
+        if hardware.button is not None and not hardware.button.value:
+            ui.page_reconfigure(ui.service)
+            ui.beep_success()
+
+                
+
+        # check accelerometer?
+
+        # check for lock status changes?
           
                        
 #
@@ -235,7 +267,7 @@ logger.info(f"Network: {hardware.get_ESSID()}, Signal: {hardware.get_RSSI()}")
 #
 
 if hardware.battery_monitor is not None:
-    logger.info(f"Battery status: {hardware.battery_monitor.cell_voltage:.2f}V, {hardware.battery_monitor.cell_percent:.1f} %")
+    logger.info(f"VBUS: {hardware.battery_monitor.VBUS:.0f} mV, {hardware.battery_monitor.VBAT:.0f} mV")
 
 logger.info(f"{len(hardware.port_expanders)} compartment PCBs / rows detected.")
 if len(hardware.port_expanders)*5 < small_compartments:

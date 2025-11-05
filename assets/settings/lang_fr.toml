@@ -51,3 +51,6 @@ reset_text = "Les tags NFC enregistrés pour le compartiment {comp} ont été su
 settings = "Configuration"
 settings_sound = "Retour sonore"
 settings_haptic = "Retour haptique"
+settings_charging = "Chargement batterie"
+settings_accel_alarm = "Alarme de mouvement"
+settings_brightness = "Luminosité de l'écran"

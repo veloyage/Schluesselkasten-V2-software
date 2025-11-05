@@ -10,6 +10,7 @@ from adafruit_mcp230xx.mcp23017 import MCP23017 # port expander
 import adafruit_lis3dh # accelerometer
 import adafruit_veml7700 # light sensor
 import adafruit_drv2605 # haptic driver
+import bq25628 # battery charger / fuel gauge
 
 import subprocess  # For executing a shell command
 import logging
@@ -26,16 +27,20 @@ from math import floor
 logger = logging.getLogger(__name__)
 
 # infos
-__version__ = "2.0.0-beta4"
+__version__ = "2.0.0-beta5"
 
-nfc_serial = "/dev/ttyAMA3"
+# serial for nfc reader, 3 on Hat V1.0, 4 on Hat V1.1
+nfc_serial = "/dev/ttyAMA4"
 
     
-# 4 separate buses on V2
-i2c_sys = I2C(4)  # Device is /dev/i2c-4
-i2c_ext1 = I2C(1)  # Device is /dev/i2c-1
-i2c_ext2 = I2C(5)  # Device is /dev/i2c-5
-i2c_ee = I2C(0)  # Device is /dev/i2c-0
+# 4 separate buses on V2, using the ExtendedI2C class
+# for hat 1.0 / HW 2.0: 0 (EEPROM), 1 (conn 1), 4 (system devices) and 5 (conn 2)
+# for hat 1.1 / HW 2.1: 0 (EEPROM), 1 (system devices), 5 (conn 1) and 6 (conn 2)
+
+i2c_sys = I2C(1)  # 2.0: 4, 2.1: 1
+i2c_ext1 = I2C(5)  # 2.0: 1, 2.1: 5
+i2c_ext2 = I2C(6)  # 2.0: 5, 2.1: 6
+i2c_ee = I2C(0)  # 2.0: 0, 2.1: 0
 
 # PWM
 # display backlight
@@ -45,23 +50,38 @@ backlight.start(50)
 # piezo buzzer
 piezo = HardwarePWM(pwm_channel=0, hz=1000, chip=0)
 
-# set up acc interrupt pin
-acc_int = digitalio.DigitalInOut(board.D24)
-acc_int.direction = digitalio.Direction.INPUT
+# set up NFC interrupt pin
+nfc_int = digitalio.DigitalInOut(board.D25)
+nfc_int.direction = digitalio.Direction.INPUT
 
-# set up hapt interrupt pin
-hapt_int = digitalio.DigitalInOut(board.D23)
+# set up NFC reset pin
+nfc_rst = digitalio.DigitalInOut(board.D24) # does not exist on HW 2.0
+nfc_rst.direction = digitalio.Direction.OUTPUT
+nfc_rst.value = True
+
+# set up hapt trigger pin
+hapt_int = digitalio.DigitalInOut(board.D17) # 23 on HW v2.0, 17 on HW v2.1
 hapt_int.direction = digitalio.Direction.OUTPUT
 hapt_int.value = False
 
 # set up lock interrupt pin
-lock_int = digitalio.DigitalInOut(board.D22)
+lock_int = digitalio.DigitalInOut(board.D27) # 22 on HW v2.0, 27 on HW v2.1
 lock_int.direction = digitalio.Direction.INPUT
 
+# set up on-hat button
+button = digitalio.DigitalInOut(board.D26) # does not exist on HW 2.0
+button.direction = digitalio.Direction.INPUT
+button.pull = digitalio.Pull.UP
+
+# set up charge disable pin
+CD = digitalio.DigitalInOut(board.D16) # does not exist on HW 2.0
+CD.direction = digitalio.Direction.OUTPUT
+CD.value = False  # enable charging
+
 ## LED config 
-LED_connector_1 = SPIneo('/dev/spidev1.0', 40, 1200)
+LED_connector_1 = SPIneo('/dev/spidev0.0', 40, 1200)
 #LED_connector_2 = SPIneo('/dev/spidev4.0', 40, 1000)
-LED_connector_3 = SPIneo('/dev/spidev0.0', 3, 1000, "RGBW")
+LED_connector_3 = SPIneo('/dev/spidev1.0', 3, 1000, "RGBW")
 
 LED_connector_1.clear_strip()
 LED_connector_1.update_strip(sleep_duration=0.001)
@@ -104,8 +124,10 @@ except Exception as e:
     logger.error(f"Error setting up brightness sensor: {e}")
 
 try: 
-    # TODO: add support for the BQ34210
-    battery_monitor = None
+    battery_monitor = bq25628.BQ25628(i2c_sys) # 0x6A
+    battery_monitor.set_charge_current(500)  # mA
+    battery_monitor.set_charge_voltage(4000) # mV
+    battery_monitor.adc_enable(True)
 except Exception as e:
     battery_monitor = None
     logger.error(f"Error setting up battery monitor: {e}")
